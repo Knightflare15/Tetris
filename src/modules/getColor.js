@@ -7,6 +7,7 @@ export function getColor(value) {
     5: "#f00000", // Z - red
     6: "#0000f0", // J - blue
     7: "#f0a000", // L - orange
+    8: "#ffffff9c", // Ghost piece
   };
-  return colors[value] || "#fff";
+  return colors[value];
 }

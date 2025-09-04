@@ -8,15 +8,34 @@ export const COLS = 10;
 const BASE_DROP_INTERVAL = 1000;
 const DROP_ACCELERATION = 75;
 const MAX_SPEED = 100;
-const LINES_PER_LEVEL = 10;
+const LINES_PER_LEVEL = 1;
 const blockSize = 30;
-
+const queue = [];
 export let gameBoard = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
 
 export let currentPiece = null;
 export let currentPos = { x: 0, y: 0 };
 export const canvas = document.getElementById("tetris");
 export const context = canvas.getContext("2d");
+const scoreF = document.getElementById("score");
+const levelF = document.getElementById("level");
+const linesF = document.getElementById("lines");
+let paused = false;
+let lastSweepTime = 0;
+let timeSubtract = 0;
+export function pauseGame() {
+  paused = true;
+  timeSubtract = Date.now();
+}
+
+export function resumeGame() {
+  if (paused) {
+    paused = false;
+    update();
+    timeSubtract = Date.now() - timeSubtract;
+  }
+}
+let gameOver = false;
 let dropCounter = 0;
 let dropInterval = BASE_DROP_INTERVAL;
 let lastTime = 0;
@@ -39,9 +58,22 @@ export function render() {
   });
 
   if (currentPiece) {
+    const ghostPos = getGhostPiecePosition();
+
+    context.fillStyle = "rgba(255, 255, 255, 0.2)";
     currentPiece.matrix.forEach((row, y) => {
       row.forEach((value, x) => {
-        if (value !== 0) {
+        const drawY = ghostPos.y + y;
+        if (value !== 0 && drawY >= 0) {
+          context.fillRect(ghostPos.x + x, drawY, 1, 1);
+        }
+      });
+    });
+
+    currentPiece.matrix.forEach((row, y) => {
+      row.forEach((value, x) => {
+        const drawY = currentPos.y + y;
+        if (value !== 0 && drawY >= 0) {
           context.fillStyle = getColor(value);
           context.fillRect(currentPos.x + x, currentPos.y + y, 1, 1);
         }
@@ -74,10 +106,25 @@ function collide(board, matrix, offset) {
   return false;
 }
 
+function getGhostPiecePosition() {
+  let ghostY = currentPos.y;
+
+  while (
+    !collide(gameBoard, currentPiece.matrix, {
+      x: currentPos.x,
+      y: ghostY + 1,
+    })
+  ) {
+    ghostY++;
+  }
+
+  return { x: currentPos.x, y: ghostY };
+}
+
 function merge(board, matrix, offset) {
   matrix.forEach((row, y) => {
     row.forEach((value, x) => {
-      if (value !== 0) {
+      if (value !== 0 && y + offset.y >= 0) {
         board[y + offset.y][x + offset.x] = value;
       }
     });
@@ -102,9 +149,17 @@ function sweepLines() {
 
   if (rowsCleared > 0) {
     linesCleared += rowsCleared;
-    score += rowsCleared * 100;
-
+    let TimeRN = Date.now();
+    score += parseInt(
+      (rowsCleared * (100 + rowsCleared * 30) * 10) /
+        ((TimeRN - lastSweepTime - timeSubtract) / 1000)
+    );
+    timeSubtract = 0;
+    lastSweepTime = TimeRN;
     const newLevel = Math.floor(linesCleared / LINES_PER_LEVEL) + 1;
+    scoreF.textContent = score;
+    levelF.textContent = level;
+    linesF.textContent = linesCleared;
     if (newLevel > level) {
       level = newLevel;
       dropInterval = Math.max(
@@ -121,26 +176,32 @@ function drop() {
   if (collide(gameBoard, currentPiece.matrix, currentPos)) {
     currentPos.y--;
     merge(gameBoard, currentPiece.matrix, currentPos);
+
     sweepLines();
     spawnPiece();
   }
 }
 
 function spawnPiece() {
-  const { type, matrix } = generateFairBlock();
+  if (gameOver) return;
+  const { type, matrix } = queue.shift();
+  queue.push(generateFairBlock());
   currentPiece = { type, matrix };
   currentPos = {
     x: Math.floor(COLS / 2) - Math.floor(matrix[0].length / 2),
-    y: 0,
+    y: -1,
   };
-
   if (collide(gameBoard, matrix, currentPos)) {
-    console.log("Game Over");
+    gameOver = true;
     cancelAnimationFrame(animationFrameId);
+    alert("Game Over!");
+    return;
   }
+  renderQueue();
 }
 
 export function update(time = 0) {
+  if (paused) return;
   const deltaTime = time - lastTime;
   lastTime = time;
   dropCounter += deltaTime;
@@ -193,10 +254,36 @@ export function hardDrop() {
   ) {
     currentPos.y++;
   }
-  merge(gameBoard, currentPiece.matrix, currentPos);
-  sweepLines();
-  spawnPiece();
+  merge(gameBoard, currentPiece.matrix, currentPos); // Merge at the final spot.
+  sweepLines(); // Check for and clear lines.
+  spawnPiece(); // Spawn the next piece.
+  dropCounter = 0; // Reset the drop timer.
   render();
+}
+
+export function renderQueue() {
+  const previewCanvas = document.getElementById("preview");
+  const previewCtx = previewCanvas.getContext("2d");
+  const previewBlockSize = 30;
+  previewCtx.setTransform(0.7, 0, 0, 0.7, 0, 0); // Reset any previous transforms
+
+  previewCtx.scale(previewBlockSize, previewBlockSize);
+  previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+
+  queue.slice(0, 3).forEach((block, i) => {
+    const matrix = block.matrix;
+    const offsetX = Math.floor(previewCanvas.width / previewBlockSize / 2);
+    const offsetY = i * 4;
+
+    matrix.forEach((row, y) => {
+      row.forEach((value, x) => {
+        if (value !== 0) {
+          previewCtx.fillStyle = getColor(value);
+          previewCtx.fillRect(offsetX + x, offsetY + y, 1, 1);
+        }
+      });
+    });
+  });
 }
 
 export function handleStartGame(context) {
@@ -204,12 +291,21 @@ export function handleStartGame(context) {
   level = 1;
   score = 0;
   linesCleared = 0;
+  scoreF.textContent = score;
+  levelF.textContent = level;
+  linesF.textContent = linesCleared;
   dropInterval = BASE_DROP_INTERVAL;
-
+  gameOver = false;
+  lastSweepTime = Date.now();
+  while (queue.length) queue.shift();
+  queue.push(generateFairBlock());
+  queue.push(generateFairBlock());
+  queue.push(generateFairBlock());
   spawnPiece();
   lastTime = 0;
   dropCounter = 0;
   if (animationFrameId) cancelAnimationFrame(animationFrameId);
   update();
   render();
+  renderQueue();
 }

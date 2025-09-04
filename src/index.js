@@ -14,7 +14,18 @@ import {
   context,
   canvas,
 } from "./modules/gameActions";
+import { pauseGame, resumeGame } from "./modules/gameActions.js";
 
+const pauseBtn = document.getElementById("pauseBtn");
+pauseBtn.addEventListener("click", () => {
+  if (pauseBtn.textContent === "Pause") {
+    pauseGame();
+    pauseBtn.textContent = "Resume";
+  } else {
+    resumeGame();
+    pauseBtn.textContent = "Pause";
+  }
+});
 const blockSize = 30;
 context.scale(blockSize, blockSize);
 
@@ -45,10 +56,6 @@ function handleKeyDown(event) {
   render();
 }
 
-function clearCanvas() {
-  context.clearRect(0, 0, canvas.width / blockSize, canvas.height / blockSize);
-}
-
 function drawBlock(x, y, color) {
   context.fillStyle = color;
   context.fillRect(x, y, 1, 1);
@@ -65,6 +72,7 @@ function drawMatrix(matrix, offset, color = "#0ff") {
 }
 const startBtn = document.getElementById("startBtn");
 startBtn.addEventListener("click", () => {
+  startBtn.blur();
   handleStartGame(context);
   setupInputHandlers();
   render();
