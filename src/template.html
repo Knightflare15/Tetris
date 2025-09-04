@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TetrShare</title>
+</head>
+<body>
+    <div class="grid-layout">
+        <div class="panel" id="statsPanel">
+            <h2>Stats</h2>
+            <p>Score: <span id="score">0</span></p>
+            <p>Level: <span id="level">1</span></p>
+        </div>
+
+        <canvas id="tetris" width="300" height="600"></canvas>
+
+        <div class="panel" id="previewPanel">
+            <h2>Next</h2>
+            <canvas id="preview" width="150" height="150"></canvas>
+        </div>
+
+        <div class="controls">
+            <button id="startBtn">Start Game</button>
+        </div>
+    </div>
+</body>
+</html>

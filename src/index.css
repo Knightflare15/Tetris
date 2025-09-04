@@ -1,0 +1,53 @@
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: #111;
+    color: white;
+    height: 100vh;
+    display: grid;
+    place-items: center;
+}
+
+.grid-layout {
+    display: grid;
+    grid-template-columns: 150px 300px 150px; /* Side panels and game */
+    grid-template-rows: auto auto; /* Game row and button row */
+    gap: 20px;
+    align-items: start;
+}
+
+.panel {
+    width: 150px;
+    text-align: center;
+}
+
+.panel canvas {
+    background-color: #222;
+    display: block;
+    margin: 10px auto;
+    border: 1px solid #444;
+}
+
+#tetris {
+    background-color: #000;
+    border: 2px solid #555;
+    display: block;
+}
+
+.controls {
+    grid-column: 1 / 4; /* Span all 3 columns */
+    text-align: center;
+    margin-top: 20px;
+}
+button {
+    padding: 10px 20px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #218838;
+}
