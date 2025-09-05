@@ -1,15 +1,11 @@
 import "./index.css";
 import {
   handleStartGame,
-  gameBoard,
-  resetGameBoard,
   moveLeft,
   moveRight,
   moveDown,
   rotatePiece,
   hardDrop,
-  currentPiece,
-  currentPos,
   render,
   context,
   canvas,
@@ -25,7 +21,7 @@ let holdTimeout = null;
 let holdInterval = null;
 const HOLD_DELAY = 500; // ms before continuous drop starts
 const MOVE_THRESHOLD = 60; // px minimum move to count as drag
-const HARD_DROP_THRESHOLD = 100; // px swipe down distance
+const HARD_DROP_THRESHOLD = 200; // px swipe down distance
 let isHolding = false;
 
 canvas.addEventListener("touchstart", (e) => {
@@ -140,15 +136,6 @@ function drawBlock(x, y, color) {
   context.fillRect(x, y, 1, 1);
 }
 
-function drawMatrix(matrix, offset, color = "#0ff") {
-  matrix.forEach((row, y) => {
-    row.forEach((cell, x) => {
-      if (cell) {
-        drawBlock(x + offset.x, y + offset.y, color);
-      }
-    });
-  });
-}
 const startBtn = document.getElementById("startBtn");
 startBtn.addEventListener("click", () => {
   startBtn.blur();
