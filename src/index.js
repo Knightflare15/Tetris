@@ -65,13 +65,10 @@ function handleKeyDown(event) {
   render();
 }
 
-function drawBlock(x, y, color) {
-  context.fillStyle = color;
-  context.fillRect(x, y, 1, 1);
-}
-
 const startBtn = document.getElementById("startBtn");
 startBtn.addEventListener("click", () => {
+  if (paused) return;
+
   canvas.addEventListener("touchstart", (e) => {
     const touch = e.touches[0];
     startX = touch.clientX;
@@ -91,7 +88,6 @@ startBtn.addEventListener("click", () => {
   });
 
   canvas.addEventListener("touchmove", (e) => {
-    if (paused) return;
     const touch = e.touches[0];
     const dy = touch.clientY - startY;
     const dx = touch.clientX - lastX;
