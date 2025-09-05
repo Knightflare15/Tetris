@@ -8,7 +8,7 @@ export const COLS = 10;
 const BASE_DROP_INTERVAL = 1000;
 const DROP_ACCELERATION = 75;
 const MAX_SPEED = 100;
-const LINES_PER_LEVEL = 1;
+const LINES_PER_LEVEL = 3;
 const blockSize = 30;
 const queue = [];
 export let gameBoard = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
@@ -125,29 +125,52 @@ function merge(board, matrix, offset) {
   matrix.forEach((row, y) => {
     row.forEach((value, x) => {
       if (value !== 0 && y + offset.y >= 0) {
-        board[y + offset.y][x + offset.x] = value;
+        board[y + offset.y][x + offset.x] = (level % 7) + 1;
       }
     });
   });
 }
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
-function sweepLines() {
+let isClearingLines = false;
+
+async function sweepLines() {
   let rowsCleared = 0;
-
+  const linesToClear = [];
   outer: for (let y = ROWS - 1; y >= 0; y--) {
     for (let x = 0; x < COLS; x++) {
       if (gameBoard[y][x] === 0) {
         continue outer;
       }
     }
-
-    const row = gameBoard.splice(y, 1)[0].fill(0);
-    gameBoard.unshift(row);
-    y++;
-    rowsCleared++;
+    linesToClear.push(y);
   }
 
-  if (rowsCleared > 0) {
+  if (linesToClear.length > 0) {
+    isClearingLines = true;
+
+    for (const y of linesToClear) {
+      gameBoard[y].fill(0);
+    }
+    let tempPiece = currentPiece;
+    currentPiece = null;
+    render();
+    await delay(500); // Wait for a full second
+    currentPiece = tempPiece;
+
+    const newGameBoard = gameBoard.filter(
+      (row, index) => !linesToClear.includes(index)
+    );
+    rowsCleared = linesToClear.length;
+    const emptyLines = Array.from({ length: rowsCleared }, () =>
+      Array(COLS).fill(0)
+    );
+    gameBoard = emptyLines.concat(newGameBoard);
+    isClearingLines = false;
+    rowsCleared = linesToClear.length;
+
     linesCleared += rowsCleared;
     let TimeRN = Date.now();
     score += parseInt(
@@ -158,26 +181,31 @@ function sweepLines() {
     lastSweepTime = TimeRN;
     const newLevel = Math.floor(linesCleared / LINES_PER_LEVEL) + 1;
     scoreF.textContent = score;
-    levelF.textContent = level;
     linesF.textContent = linesCleared;
+
     if (newLevel > level) {
       level = newLevel;
+      gameBoard = gameBoard.map((row) =>
+        row.map((cell) => (cell != 0 ? (level % 7) + 1 : 0))
+      );
+      levelF.textContent = level;
       dropInterval = Math.max(
         BASE_DROP_INTERVAL - (level - 1) * DROP_ACCELERATION,
         MAX_SPEED
       );
-      console.log(`Level up! Level: ${level}, New speed: ${dropInterval}ms`);
     }
+    update();
+    render();
   }
 }
 
-function drop() {
+async function drop() {
   currentPos.y++;
   if (collide(gameBoard, currentPiece.matrix, currentPos)) {
     currentPos.y--;
     merge(gameBoard, currentPiece.matrix, currentPos);
 
-    sweepLines();
+    await sweepLines();
     spawnPiece();
   }
 }
@@ -201,7 +229,7 @@ function spawnPiece() {
 }
 
 export function update(time = 0) {
-  if (paused) return;
+  if (paused || isClearingLines) return;
   const deltaTime = time - lastTime;
   lastTime = time;
   dropCounter += deltaTime;
@@ -245,7 +273,7 @@ export function rotatePiece() {
   }
 }
 
-export function hardDrop() {
+export async function hardDrop() {
   while (
     !collide(gameBoard, currentPiece.matrix, {
       x: currentPos.x,
@@ -255,7 +283,7 @@ export function hardDrop() {
     currentPos.y++;
   }
   merge(gameBoard, currentPiece.matrix, currentPos); // Merge at the final spot.
-  sweepLines(); // Check for and clear lines.
+  await sweepLines(); // Check for and clear lines.
   spawnPiece(); // Spawn the next piece.
   dropCounter = 0; // Reset the drop timer.
   render();
