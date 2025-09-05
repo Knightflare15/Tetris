@@ -20,7 +20,7 @@ export const context = canvas.getContext("2d");
 const scoreF = document.getElementById("score");
 const levelF = document.getElementById("level");
 const linesF = document.getElementById("lines");
-let paused = false;
+export let paused = false;
 let lastSweepTime = 0;
 let timeSubtract = 0;
 export function pauseGame() {

@@ -9,6 +9,7 @@ import {
   render,
   context,
   canvas,
+  paused,
 } from "./modules/gameActions";
 
 import { pauseGame, resumeGame } from "./modules/gameActions.js";
@@ -90,6 +91,7 @@ startBtn.addEventListener("click", () => {
   });
 
   canvas.addEventListener("touchmove", (e) => {
+    if (paused) return;
     const touch = e.touches[0];
     const dy = touch.clientY - startY;
     const dx = touch.clientX - lastX;

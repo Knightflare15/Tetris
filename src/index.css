@@ -65,7 +65,7 @@ button:hover {
   }
 
 
-  .grid-layout {
+  canvas {
     overscroll-behavior: none;
   }
 }
