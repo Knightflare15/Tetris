@@ -59,7 +59,6 @@ canvas.addEventListener("touchmove", (e) => {
     render();
     lastX = touch.clientX;
 
-    // Cancel hold drop if user is dragging
     clearTimeout(holdTimeout);
     clearInterval(holdInterval);
   }
@@ -74,15 +73,13 @@ canvas.addEventListener("touchend", (e) => {
   const dx = touch.clientX - startX;
   const dy = touch.clientY - startY;
 
-  // Swipe down for hard drop
-  if (dy > HARD_DROP_THRESHOLD) {
+  if (dy < -HARD_DROP_THRESHOLD) {
     hardDrop();
     render();
     e.preventDefault();
     return;
   }
 
-  // If no significant movement, treat as tap for rotate
   if (
     !touchMoved &&
     Math.abs(dx) < MOVE_THRESHOLD &&
