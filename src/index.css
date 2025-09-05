@@ -60,10 +60,10 @@ button:hover {
   body {
     margin: 0;
     padding: 5px;
-    height: 100vh;
+    width: device-width;
     box-sizing: border-box;
-    overflow-x: hidden; /* Prevent horizontal scroll caused by slight overflows */
   }
+
 
   .grid-layout {
     overscroll-behavior: none;
