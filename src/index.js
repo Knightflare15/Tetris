@@ -10,6 +10,7 @@ import {
   context,
   canvas,
   paused,
+  currentPiece,
 } from "./modules/gameActions";
 
 import { pauseGame, resumeGame } from "./modules/gameActions.js";
@@ -65,80 +66,79 @@ function handleKeyDown(event) {
   render();
 }
 
+canvas.addEventListener("touchstart", (e) => {
+  if (paused || !currentPiece) return;
+  const touch = e.touches[0];
+  startX = touch.clientX;
+  startY = touch.clientY;
+  lastX = startX;
+  touchMoved = false;
+
+  holdTimeout = setTimeout(() => {
+    isHolding = true;
+    holdInterval = setInterval(() => {
+      moveDown();
+      render();
+    }, 100);
+  }, HOLD_DELAY);
+
+  e.preventDefault();
+});
+
+canvas.addEventListener("touchmove", (e) => {
+  if (paused || !currentPiece) return;
+  const touch = e.touches[0];
+  const dy = touch.clientY - startY;
+  const dx = touch.clientX - lastX;
+
+  if (Math.abs(dx) > MOVE_THRESHOLD && Math.abs(dy) < HARD_DROP_THRESHOLD / 5) {
+    touchMoved = true;
+    if (dx > 0) {
+      moveRight();
+    } else if (dx < 0) {
+      moveLeft();
+    }
+    render();
+    lastX = touch.clientX;
+
+    clearTimeout(holdTimeout);
+    clearInterval(holdInterval);
+  }
+  e.preventDefault();
+});
+
+canvas.addEventListener("touchend", (e) => {
+  if (paused || !currentPiece) return;
+  clearTimeout(holdTimeout);
+  clearInterval(holdInterval);
+  const wasHolding = isHolding;
+  isHolding = false;
+  const touch = e.changedTouches[0];
+  const dx = touch.clientX - startX;
+  const dy = touch.clientY - startY;
+
+  if (dy > HARD_DROP_THRESHOLD) {
+    hardDrop();
+    render();
+    e.preventDefault();
+    return;
+  }
+
+  if (
+    !touchMoved &&
+    Math.abs(dx) < MOVE_THRESHOLD &&
+    Math.abs(dy) < MOVE_THRESHOLD &&
+    !wasHolding
+  ) {
+    rotatePiece();
+    render();
+  }
+  e.preventDefault();
+});
+
 const startBtn = document.getElementById("startBtn");
 startBtn.addEventListener("click", () => {
   if (paused) return;
-
-  canvas.addEventListener("touchstart", (e) => {
-    const touch = e.touches[0];
-    startX = touch.clientX;
-    startY = touch.clientY;
-    lastX = startX;
-    touchMoved = false;
-
-    holdTimeout = setTimeout(() => {
-      isHolding = true;
-      holdInterval = setInterval(() => {
-        moveDown();
-        render();
-      }, 100);
-    }, HOLD_DELAY);
-
-    e.preventDefault();
-  });
-
-  canvas.addEventListener("touchmove", (e) => {
-    const touch = e.touches[0];
-    const dy = touch.clientY - startY;
-    const dx = touch.clientX - lastX;
-
-    if (
-      Math.abs(dx) > MOVE_THRESHOLD &&
-      Math.abs(dy) < HARD_DROP_THRESHOLD / 5
-    ) {
-      touchMoved = true;
-      if (dx > 0) {
-        moveRight();
-      } else if (dx < 0) {
-        moveLeft();
-      }
-      render();
-      lastX = touch.clientX;
-
-      clearTimeout(holdTimeout);
-      clearInterval(holdInterval);
-    }
-    e.preventDefault();
-  });
-
-  canvas.addEventListener("touchend", (e) => {
-    clearTimeout(holdTimeout);
-    clearInterval(holdInterval);
-    const wasHolding = isHolding;
-    isHolding = false;
-    const touch = e.changedTouches[0];
-    const dx = touch.clientX - startX;
-    const dy = touch.clientY - startY;
-
-    if (dy > HARD_DROP_THRESHOLD) {
-      hardDrop();
-      render();
-      e.preventDefault();
-      return;
-    }
-
-    if (
-      !touchMoved &&
-      Math.abs(dx) < MOVE_THRESHOLD &&
-      Math.abs(dy) < MOVE_THRESHOLD &&
-      !wasHolding
-    ) {
-      rotatePiece();
-      render();
-    }
-    e.preventDefault();
-  });
-
   startBtn.blur();
   handleStartGame(context);
   setupInputHandlers();
