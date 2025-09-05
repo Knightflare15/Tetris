@@ -25,7 +25,7 @@ let holdTimeout = null;
 let holdInterval = null;
 const HOLD_DELAY = 500; // ms before continuous drop starts
 const MOVE_THRESHOLD = 60; // px minimum move to count as drag
-const HARD_DROP_THRESHOLD = 50; // px swipe down distance
+const HARD_DROP_THRESHOLD = 70; // px swipe down distance
 let isHolding = false;
 
 canvas.addEventListener("touchstart", (e) => {
@@ -51,7 +51,7 @@ canvas.addEventListener("touchmove", (e) => {
   const dy = touch.clientY - startY;
   const dx = touch.clientX - lastX;
 
-  if (Math.abs(dx) > MOVE_THRESHOLD && Math.abs(dy) < HARD_DROP_THRESHOLD) {
+  if (Math.abs(dx) > MOVE_THRESHOLD && Math.abs(dy) < HARD_DROP_THRESHOLD / 2) {
     touchMoved = true;
     if (dx > 0) {
       moveRight();
