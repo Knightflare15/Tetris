@@ -73,7 +73,7 @@ canvas.addEventListener("touchend", (e) => {
   const dx = touch.clientX - startX;
   const dy = touch.clientY - startY;
 
-  if (dy < -HARD_DROP_THRESHOLD) {
+  if (dy > HARD_DROP_THRESHOLD) {
     hardDrop();
     render();
     e.preventDefault();
