@@ -24,8 +24,8 @@ let touchMoved = false;
 let holdTimeout = null;
 let holdInterval = null;
 const HOLD_DELAY = 500; // ms before continuous drop starts
-const MOVE_THRESHOLD = 30; // px minimum move to count as drag
-const HARD_DROP_THRESHOLD = 40; // px swipe down distance
+const MOVE_THRESHOLD = 40; // px minimum move to count as drag
+const HARD_DROP_THRESHOLD = 45; // px swipe down distance
 let isHolding = false;
 
 canvas.addEventListener("touchstart", (e) => {
@@ -48,9 +48,10 @@ canvas.addEventListener("touchstart", (e) => {
 
 canvas.addEventListener("touchmove", (e) => {
   const touch = e.touches[0];
+  const dy = touch.clientY - startY;
   const dx = touch.clientX - lastX;
 
-  if (Math.abs(dx) > MOVE_THRESHOLD) {
+  if (Math.abs(dx) > MOVE_THRESHOLD && Math.abs(dy) < HARD_DROP_THRESHOLD) {
     touchMoved = true;
     if (dx > 0) {
       moveRight();
@@ -69,7 +70,8 @@ canvas.addEventListener("touchmove", (e) => {
 canvas.addEventListener("touchend", (e) => {
   clearTimeout(holdTimeout);
   clearInterval(holdInterval);
-
+  const wasHolding = isHolding;
+  isHolding = false;
   const touch = e.changedTouches[0];
   const dx = touch.clientX - startX;
   const dy = touch.clientY - startY;
@@ -85,13 +87,11 @@ canvas.addEventListener("touchend", (e) => {
     !touchMoved &&
     Math.abs(dx) < MOVE_THRESHOLD &&
     Math.abs(dy) < MOVE_THRESHOLD &&
-    !isHolding
+    !wasHolding
   ) {
     rotatePiece();
     render();
   }
-  isHolding = false;
-
   e.preventDefault();
 });
 
