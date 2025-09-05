@@ -14,6 +14,9 @@ import {
   context,
   canvas,
 } from "./modules/gameActions";
+
+let startX = null,
+  startY = null;
 import { pauseGame, resumeGame } from "./modules/gameActions.js";
 
 const pauseBtn = document.getElementById("pauseBtn");
@@ -28,6 +31,39 @@ pauseBtn.addEventListener("click", () => {
 });
 const blockSize = 30;
 context.scale(blockSize, blockSize);
+
+canvas.addEventListener("touchstart", (e) => {
+  const touch = e.touches[0];
+  startX = touch.clientX;
+  startY = touch.clientY;
+});
+
+canvas.addEventListener("touchend", (e) => {
+  let dx = e.changedTouches[0].clientX - startX;
+  let dy = e.changedTouches[0].clientY - startY;
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+    // Horizontal swipe
+    if (dx > 30) {
+      moveRight();
+    } else if (dx < -30) {
+      moveLeft();
+    }
+  } else {
+    // Vertical swipe
+    if (dy > 100) {
+      hardDrop();
+    } else if (dy > 30) {
+      moveDown();
+    } else if (dy < -30) {
+      rotatePiece();
+    }
+    render();
+    startX = null;
+    startY = null;
+    e.preventDefault();
+  }
+});
 
 function setupInputHandlers() {
   window.addEventListener("keydown", handleKeyDown);
