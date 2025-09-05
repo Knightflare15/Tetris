@@ -11,12 +11,17 @@ body {
 
 .grid-layout {
     display: grid;
-    grid-template-columns: 150px 300px 150px; /* Side panels and game */
+    grid-template-columns: 300px 150px ; /* Side panels and game */
     grid-template-rows: auto auto; /* Game row and button row */
     gap: 20px;
     align-items: start;
 }
-
+.Outerpanel{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+}
 .panel {
     width: 150px;
     text-align: center;
@@ -53,8 +58,15 @@ button:hover {
     background-color: #218838;
 }
 @media (hover: none) and (pointer: coarse) {
-  canvas {
-    overscroll-behavior: none;
+  body {
+    width: 100vw;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    overflow-x: hidden; /* Prevent horizontal scroll caused by slight overflows */
   }
 
+  .grid-layout {
+    overscroll-behavior: none;
+  }
 }

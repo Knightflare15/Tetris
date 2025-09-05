@@ -243,6 +243,7 @@ export function update(time = 0) {
   animationFrameId = requestAnimationFrame(update);
 }
 export function moveLeft() {
+  if (paused) return;
   const newPos = { x: currentPos.x - 1, y: currentPos.y };
   if (!collide(gameBoard, currentPiece.matrix, newPos)) {
     currentPos.x--;
@@ -250,6 +251,7 @@ export function moveLeft() {
 }
 
 export function moveRight() {
+  if (paused) return;
   const newPos = { x: currentPos.x + 1, y: currentPos.y };
   if (!collide(gameBoard, currentPiece.matrix, newPos)) {
     currentPos.x++;
@@ -257,6 +259,7 @@ export function moveRight() {
 }
 
 export function moveDown() {
+  if (paused) return;
   const newPos = { x: currentPos.x, y: currentPos.y + 1 };
   if (!collide(gameBoard, currentPiece.matrix, newPos)) {
     currentPos.y++;
@@ -267,6 +270,7 @@ export function moveDown() {
 }
 
 export function rotatePiece() {
+  if (paused) return;
   const rotated = rotate(currentPiece.matrix);
   if (!collide(gameBoard, rotated, currentPos)) {
     currentPiece.matrix = rotated;
@@ -274,6 +278,7 @@ export function rotatePiece() {
 }
 
 export async function hardDrop() {
+  if (paused) return;
   while (
     !collide(gameBoard, currentPiece.matrix, {
       x: currentPos.x,
