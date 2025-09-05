@@ -24,8 +24,8 @@ let touchMoved = false;
 let holdTimeout = null;
 let holdInterval = null;
 const HOLD_DELAY = 500; // ms before continuous drop starts
-const MOVE_THRESHOLD = 20; // px minimum move to count as drag
-const HARD_DROP_THRESHOLD = 100; // px swipe down distance
+const MOVE_THRESHOLD = 30; // px minimum move to count as drag
+const HARD_DROP_THRESHOLD = 40; // px swipe down distance
 let isHolding = false;
 
 canvas.addEventListener("touchstart", (e) => {
@@ -35,13 +35,12 @@ canvas.addEventListener("touchstart", (e) => {
   lastX = startX;
   touchMoved = false;
 
-  // Start hold timer for soft drop continuous moveDown
   holdTimeout = setTimeout(() => {
     isHolding = true;
     holdInterval = setInterval(() => {
       moveDown();
       render();
-    }, 100); // repeat every 100ms while holding
+    }, 100);
   }, HOLD_DELAY);
 
   e.preventDefault();
