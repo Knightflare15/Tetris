@@ -24,8 +24,8 @@ let touchMoved = false;
 let holdTimeout = null;
 let holdInterval = null;
 const HOLD_DELAY = 500; // ms before continuous drop starts
-const MOVE_THRESHOLD = 40; // px minimum move to count as drag
-const HARD_DROP_THRESHOLD = 45; // px swipe down distance
+const MOVE_THRESHOLD = 60; // px minimum move to count as drag
+const HARD_DROP_THRESHOLD = 50; // px swipe down distance
 let isHolding = false;
 
 canvas.addEventListener("touchstart", (e) => {
