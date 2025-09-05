@@ -140,6 +140,14 @@ const startBtn = document.getElementById("startBtn");
 startBtn.addEventListener("click", () => {
   if (paused) return;
   startBtn.blur();
+
+  clearTimeout(holdTimeout);
+  clearInterval(holdInterval);
+  holdTimeout = null;
+  holdInterval = null;
+  isHolding = false;
+  touchMoved = false;
+
   handleStartGame(context);
   setupInputHandlers();
   render();
