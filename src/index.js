@@ -15,9 +15,85 @@ import {
   canvas,
 } from "./modules/gameActions";
 
-let startX = null,
-  startY = null;
 import { pauseGame, resumeGame } from "./modules/gameActions.js";
+
+let startX = 0,
+  startY = 0;
+let lastX = 0;
+let touchMoved = false;
+let holdTimeout = null;
+let holdInterval = null;
+const HOLD_DELAY = 500; // ms before continuous drop starts
+const MOVE_THRESHOLD = 10; // px minimum move to count as drag
+const HARD_DROP_THRESHOLD = 100; // px swipe down distance
+
+canvas.addEventListener("touchstart", (e) => {
+  const touch = e.touches[0];
+  startX = touch.clientX;
+  startY = touch.clientY;
+  lastX = startX;
+  touchMoved = false;
+
+  // Start hold timer for soft drop continuous moveDown
+  holdTimeout = setTimeout(() => {
+    holdInterval = setInterval(() => {
+      moveDown();
+      render();
+    }, 100); // repeat every 100ms while holding
+  }, HOLD_DELAY);
+
+  e.preventDefault();
+});
+
+canvas.addEventListener("touchmove", (e) => {
+  const touch = e.touches[0];
+  const dx = touch.clientX - lastX;
+
+  if (Math.abs(dx) > MOVE_THRESHOLD) {
+    touchMoved = true;
+    if (dx > 0) {
+      moveRight();
+    } else if (dx < 0) {
+      moveLeft();
+    }
+    render();
+    lastX = touch.clientX;
+
+    // Cancel hold drop if user is dragging
+    clearTimeout(holdTimeout);
+    clearInterval(holdInterval);
+  }
+  e.preventDefault();
+});
+
+canvas.addEventListener("touchend", (e) => {
+  clearTimeout(holdTimeout);
+  clearInterval(holdInterval);
+
+  const touch = e.changedTouches[0];
+  const dx = touch.clientX - startX;
+  const dy = touch.clientY - startY;
+
+  // Swipe down for hard drop
+  if (dy > HARD_DROP_THRESHOLD) {
+    hardDrop();
+    render();
+    e.preventDefault();
+    return;
+  }
+
+  // If no significant movement, treat as tap for rotate
+  if (
+    !touchMoved &&
+    Math.abs(dx) < MOVE_THRESHOLD &&
+    Math.abs(dy) < MOVE_THRESHOLD
+  ) {
+    rotatePiece();
+    render();
+  }
+
+  e.preventDefault();
+});
 
 const pauseBtn = document.getElementById("pauseBtn");
 pauseBtn.addEventListener("click", () => {
@@ -31,39 +107,6 @@ pauseBtn.addEventListener("click", () => {
 });
 const blockSize = 30;
 context.scale(blockSize, blockSize);
-
-canvas.addEventListener("touchstart", (e) => {
-  const touch = e.touches[0];
-  startX = touch.clientX;
-  startY = touch.clientY;
-});
-
-canvas.addEventListener("touchend", (e) => {
-  let dx = e.changedTouches[0].clientX - startX;
-  let dy = e.changedTouches[0].clientY - startY;
-
-  if (Math.abs(dx) > Math.abs(dy)) {
-    // Horizontal swipe
-    if (dx > 30) {
-      moveRight();
-    } else if (dx < -30) {
-      moveLeft();
-    }
-  } else {
-    // Vertical swipe
-    if (dy > 100) {
-      hardDrop();
-    } else if (dy > 30) {
-      moveDown();
-    } else if (dy < -30) {
-      rotatePiece();
-    }
-    render();
-    startX = null;
-    startY = null;
-    e.preventDefault();
-  }
-});
 
 function setupInputHandlers() {
   window.addEventListener("keydown", handleKeyDown);
