@@ -6,5 +6,13 @@ module.exports = merge(common, {
   devtool: "eval-source-map",
   devServer: {
     watchFiles: ["./src/template.html"],
+    port: 8080,
+    proxy: [
+      {
+        context: ["/socket.io", "/auth", "/health"],
+        target: "http://localhost:3000",
+        ws: true,
+      },
+    ],
   },
 });

@@ -10,12 +10,21 @@
 
         <canvas id="tetris" width="300" height="600"></canvas>
         <div class="Outerpanel">
+            <div class="panel" id="connectionPanel">
+                <h2>Co-op</h2>
+                <input id="displayName" maxlength="24" placeholder="Player name" />
+                <p>Status: <span id="status">Offline</span></p>
+                <p>Room: <span id="room">-</span></p>
+                <p>Slot: <span id="slot">-</span></p>
+                <p>Latency: <span id="latency">-</span></p>
+            </div>
     
             <div class="panel" id="statsPanel">
                 <h2>Stats</h2>
                 <p>Score: <span id="score">0</span></p>
                 <p>Level: <span id="level">1</span></p>
                 <p>Lines: <span id="lines">0</span></p>
+                <p>Hold: <span id="hold">-</span></p>
             </div>
     
             <div class="panel" id="previewPanel">
@@ -25,8 +34,8 @@
         </div>
 
         <div class="controls">
-            <button id="startBtn">Start Game</button>
-            <button id="pauseBtn">Pause</button>
+            <button id="startBtn">Find Match</button>
+            <button id="pauseBtn">Reconnect</button>
         </div>
     </div>
 

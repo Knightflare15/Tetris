@@ -24,6 +24,24 @@ body {
 .panel {
     width: 150px;
     text-align: center;
+    line-height: 1.4;
+}
+
+.panel h2 {
+    margin: 0 0 8px;
+}
+
+.panel p {
+    margin: 6px 0;
+}
+
+input {
+    width: 130px;
+    box-sizing: border-box;
+    padding: 8px;
+    border: 1px solid #444;
+    background: #1c1c1c;
+    color: white;
 }
 
 .panel canvas {
@@ -55,6 +73,11 @@ button {
 
 button:hover {
     background-color: #218838;
+}
+
+button:disabled {
+    background-color: #555;
+    cursor: not-allowed;
 }
 @media (hover: none) and (pointer: coarse) {
   body {
