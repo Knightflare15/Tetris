@@ -1,9 +1,22 @@
 import { io, type Socket } from "socket.io-client";
 import "../index.css";
 import { cellsFor } from "../shared/engine";
-import { COLS, ROWS, type ClientToServerEvents, type InputAction, type RoomSnapshot, type ServerToClientEvents } from "../shared/types";
+import { matrixFor } from "../shared/tetrominoes";
+import {
+  COLS,
+  ROWS,
+  type ActivePiece,
+  type Board,
+  type ClientToServerEvents,
+  type InputAction,
+  type Matrix,
+  type RoomSnapshot,
+  type ServerToClientEvents,
+  type TetrominoType,
+} from "../shared/types";
 
 const BLOCK_SIZE = 30;
+const PREVIEW_BLOCK_SIZE = 18;
 const STORAGE_KEY = "coop-tetris-session";
 
 type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -185,6 +198,19 @@ function renderSnapshot(nextSnapshot: RoomSnapshot): void {
     if (!player?.active) {
       continue;
     }
+    const ghost = ghostPieceFor(nextSnapshot.board, player.active);
+    for (const cell of cellsFor(ghost)) {
+      if (cell.y >= 0) {
+        drawCell(cell.x, cell.y, colorFor(cell.value), slot === localSlot ? 0.22 : 0.14, true);
+      }
+    }
+  }
+
+  for (const slot of ["A", "B"] as const) {
+    const player = nextSnapshot.players[slot];
+    if (!player?.active) {
+      continue;
+    }
     const alpha = slot === localSlot ? 0.95 : 0.65;
     for (const cell of cellsFor(player.active)) {
       if (cell.y >= 0) {
@@ -208,13 +234,8 @@ function renderQueue(nextSnapshot: RoomSnapshot): void {
   previewContext.clearRect(0, 0, preview.width, preview.height);
   const player = localSlot ? nextSnapshot.players[localSlot] : nextSnapshot.players.A;
   const queue = player?.queue ?? [];
-  previewContext.font = "16px Arial";
-  previewContext.fillStyle = "#fff";
   queue.slice(0, 5).forEach((type, index) => {
-    previewContext.fillText(type, 20, 30 + index * 36);
-    previewContext.fillStyle = colorForPiece(type);
-    previewContext.fillRect(60, 16 + index * 36, 24, 24);
-    previewContext.fillStyle = "#fff";
+    drawPreviewPiece(type, 18, 8 + index * 46);
   });
 }
 
@@ -240,11 +261,77 @@ function drawGrid(): void {
   }
 }
 
-function drawCell(x: number, y: number, color: string, alpha: number): void {
+function drawCell(x: number, y: number, color: string, alpha: number, outline = false): void {
   context.globalAlpha = alpha;
-  context.fillStyle = color;
-  context.fillRect(x * BLOCK_SIZE + 1, y * BLOCK_SIZE + 1, BLOCK_SIZE - 2, BLOCK_SIZE - 2);
+  if (outline) {
+    context.strokeStyle = color;
+    context.lineWidth = 3;
+    context.strokeRect(x * BLOCK_SIZE + 4, y * BLOCK_SIZE + 4, BLOCK_SIZE - 8, BLOCK_SIZE - 8);
+  } else {
+    context.fillStyle = color;
+    context.fillRect(x * BLOCK_SIZE + 1, y * BLOCK_SIZE + 1, BLOCK_SIZE - 2, BLOCK_SIZE - 2);
+  }
   context.globalAlpha = 1;
+}
+
+function drawPreviewPiece(type: TetrominoType, originX: number, originY: number): void {
+  const matrix = trimMatrix(matrixFor(type));
+  const pieceWidth = matrix[0]?.length ?? 0;
+  const xOffset = Math.floor((4 - pieceWidth) * PREVIEW_BLOCK_SIZE * 0.5);
+
+  matrix.forEach((row, y) => {
+    row.forEach((value, x) => {
+      if (value === 0) {
+        return;
+      }
+      previewContext.fillStyle = colorFor(value);
+      previewContext.fillRect(
+        originX + xOffset + x * PREVIEW_BLOCK_SIZE,
+        originY + y * PREVIEW_BLOCK_SIZE,
+        PREVIEW_BLOCK_SIZE - 2,
+        PREVIEW_BLOCK_SIZE - 2,
+      );
+    });
+  });
+}
+
+function ghostPieceFor(board: Board, piece: ActivePiece): ActivePiece {
+  const ghost: ActivePiece = {
+    ...piece,
+    matrix: piece.matrix.map((row) => [...row]),
+  };
+
+  while (!pieceCollides(board, { ...ghost, y: ghost.y + 1 })) {
+    ghost.y += 1;
+  }
+
+  return ghost;
+}
+
+function pieceCollides(board: Board, piece: ActivePiece): boolean {
+  return cellsFor(piece).some(({ x, y }) => {
+    if (x < 0 || x >= COLS || y >= ROWS) {
+      return true;
+    }
+    if (y < 0) {
+      return false;
+    }
+    return board[y][x] !== 0;
+  });
+}
+
+function trimMatrix(matrix: Matrix): Matrix {
+  const occupiedRows = matrix.filter((row) => row.some((value) => value !== 0));
+  if (occupiedRows.length === 0) {
+    return matrix;
+  }
+
+  const occupiedColumns = occupiedRows[0].map((_, index) =>
+    occupiedRows.some((row) => row[index] !== 0),
+  );
+  const firstColumn = occupiedColumns.findIndex(Boolean);
+  const lastColumn = occupiedColumns.lastIndexOf(true);
+  return occupiedRows.map((row) => row.slice(firstColumn, lastColumn + 1));
 }
 
 function keyToAction(event: KeyboardEvent): InputAction | null {
@@ -301,11 +388,6 @@ function colorFor(value: number): string {
     7: "#f0a000",
   };
   return colors[value] ?? "#ffffff";
-}
-
-function colorForPiece(type: string): string {
-  const values: Record<string, number> = { I: 1, O: 2, T: 3, S: 4, Z: 5, J: 6, L: 7 };
-  return colorFor(values[type] ?? 0);
 }
 
 function short(value: string): string {
