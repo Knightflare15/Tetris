@@ -6,7 +6,6 @@ import {
   COLS,
   ROWS,
   type ActivePiece,
-  type Board,
   type ClientToServerEvents,
   type InputAction,
   type Matrix,
@@ -31,6 +30,8 @@ const canvas = mustGet<HTMLCanvasElement>("tetris");
 const context = getCanvasContext(canvas);
 const preview = mustGet<HTMLCanvasElement>("preview");
 const previewContext = getCanvasContext(preview);
+const holdPreview = mustGet<HTMLCanvasElement>("holdPreview");
+const holdPreviewContext = getCanvasContext(holdPreview);
 
 const startBtn = mustGet<HTMLButtonElement>("startBtn");
 const reconnectBtn = mustGet<HTMLButtonElement>("pauseBtn");
@@ -198,10 +199,12 @@ function renderSnapshot(nextSnapshot: RoomSnapshot): void {
     if (!player?.active) {
       continue;
     }
-    const ghost = ghostPieceFor(nextSnapshot.board, player.active);
-    for (const cell of cellsFor(ghost)) {
-      if (cell.y >= 0) {
-        drawCell(cell.x, cell.y, colorFor(cell.value), slot === localSlot ? 0.22 : 0.14, true);
+    const ghost = ghostPieceFor(nextSnapshot, slot, player.active);
+    if (ghost) {
+      for (const cell of cellsFor(ghost)) {
+        if (cell.y >= 0) {
+          drawCell(cell.x, cell.y, colorFor(cell.value), slot === localSlot ? 0.22 : 0.14, true);
+        }
       }
     }
   }
@@ -223,6 +226,7 @@ function renderSnapshot(nextSnapshot: RoomSnapshot): void {
   levelF.textContent = String(nextSnapshot.level);
   linesF.textContent = String(nextSnapshot.lines);
   holdF.textContent = nextSnapshot.hold.type ?? "-";
+  renderHold(nextSnapshot);
   renderQueue(nextSnapshot);
 
   if (nextSnapshot.gameOver) {
@@ -235,8 +239,16 @@ function renderQueue(nextSnapshot: RoomSnapshot): void {
   const player = localSlot ? nextSnapshot.players[localSlot] : nextSnapshot.players.A;
   const queue = player?.queue ?? [];
   queue.slice(0, 5).forEach((type, index) => {
-    drawPreviewPiece(type, 18, 8 + index * 46);
+    drawPreviewPiece(previewContext, type, 18, 8 + index * 46);
   });
+}
+
+function renderHold(nextSnapshot: RoomSnapshot): void {
+  holdPreviewContext.clearRect(0, 0, holdPreview.width, holdPreview.height);
+  if (!nextSnapshot.hold.type) {
+    return;
+  }
+  drawPreviewPiece(holdPreviewContext, nextSnapshot.hold.type, 34, 16);
 }
 
 function renderEmpty(): void {
@@ -274,7 +286,12 @@ function drawCell(x: number, y: number, color: string, alpha: number, outline = 
   context.globalAlpha = 1;
 }
 
-function drawPreviewPiece(type: TetrominoType, originX: number, originY: number): void {
+function drawPreviewPiece(
+  targetContext: CanvasRenderingContext2D,
+  type: TetrominoType,
+  originX: number,
+  originY: number,
+): void {
   const matrix = trimMatrix(matrixFor(type));
   const pieceWidth = matrix[0]?.length ?? 0;
   const xOffset = Math.floor((4 - pieceWidth) * PREVIEW_BLOCK_SIZE * 0.5);
@@ -284,8 +301,8 @@ function drawPreviewPiece(type: TetrominoType, originX: number, originY: number)
       if (value === 0) {
         return;
       }
-      previewContext.fillStyle = colorFor(value);
-      previewContext.fillRect(
+      targetContext.fillStyle = colorFor(value);
+      targetContext.fillRect(
         originX + xOffset + x * PREVIEW_BLOCK_SIZE,
         originY + y * PREVIEW_BLOCK_SIZE,
         PREVIEW_BLOCK_SIZE - 2,
@@ -295,20 +312,24 @@ function drawPreviewPiece(type: TetrominoType, originX: number, originY: number)
   });
 }
 
-function ghostPieceFor(board: Board, piece: ActivePiece): ActivePiece {
+function ghostPieceFor(nextSnapshot: RoomSnapshot, slot: "A" | "B", piece: ActivePiece): ActivePiece | null {
   const ghost: ActivePiece = {
     ...piece,
     matrix: piece.matrix.map((row) => [...row]),
   };
 
-  while (!pieceCollides(board, { ...ghost, y: ghost.y + 1 })) {
+  while (!pieceCollidesWithBoard(nextSnapshot, { ...ghost, y: ghost.y + 1 })) {
     ghost.y += 1;
+  }
+
+  if (pieceCollidesWithOtherActive(nextSnapshot, slot, ghost)) {
+    return null;
   }
 
   return ghost;
 }
 
-function pieceCollides(board: Board, piece: ActivePiece): boolean {
+function pieceCollidesWithBoard(nextSnapshot: RoomSnapshot, piece: ActivePiece): boolean {
   return cellsFor(piece).some(({ x, y }) => {
     if (x < 0 || x >= COLS || y >= ROWS) {
       return true;
@@ -316,8 +337,26 @@ function pieceCollides(board: Board, piece: ActivePiece): boolean {
     if (y < 0) {
       return false;
     }
-    return board[y][x] !== 0;
+    return nextSnapshot.board[y][x] !== 0;
   });
+}
+
+function pieceCollidesWithOtherActive(nextSnapshot: RoomSnapshot, slot: "A" | "B", piece: ActivePiece): boolean {
+  const otherSlot = slot === "A" ? "B" : "A";
+  const otherPiece = nextSnapshot.players[otherSlot]?.active;
+  if (!otherPiece) {
+    return false;
+  }
+
+  const occupied = new Set(
+    cellsFor(otherPiece)
+      .filter((cell) => cell.y >= 0)
+      .map((cell) => `${cell.x}:${cell.y}`),
+  );
+
+  return cellsFor(piece)
+    .filter((cell) => cell.y >= 0)
+    .some((cell) => occupied.has(`${cell.x}:${cell.y}`));
 }
 
 function trimMatrix(matrix: Matrix): Matrix {

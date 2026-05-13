@@ -115,8 +115,8 @@ export function simulateTick(state: RoomState, inputs: QueuedInput[]): Simulatio
 
   if (state.tick % gravityTicksForLevel(state.level) === 0) {
     forEachPlayer(state, (player) => {
-      if (player.active && !tryMove(state.board, player.active, 0, 1)) {
-        player.pendingLock = true;
+      if (player.active) {
+        applyVerticalFall(state, player);
       }
     });
   }
@@ -175,24 +175,25 @@ function applyMovementInput(state: RoomState, player: PlayerGameState, action: Q
 
   switch (action) {
     case "moveLeft":
-      tryMove(state.board, player.active, -1, 0);
+      tryMove(state, player.slot, player.active, -1, 0);
       return;
     case "moveRight":
-      tryMove(state.board, player.active, 1, 0);
+      tryMove(state, player.slot, player.active, 1, 0);
       return;
     case "softDrop":
-      if (!tryMove(state.board, player.active, 0, 1)) {
-        player.pendingLock = true;
-      }
+      applyVerticalFall(state, player);
       return;
     case "rotateCW":
-      tryRotate(state.board, player.active, "cw");
+      tryRotate(state, player.slot, player.active, "cw");
       return;
     case "rotateCCW":
-      tryRotate(state.board, player.active, "ccw");
+      tryRotate(state, player.slot, player.active, "ccw");
       return;
     case "hardDrop":
-      while (tryMove(state.board, player.active, 0, 1)) {
+      if (hardDropWouldOverlapOtherAtBoardLanding(state, player.slot, player.active)) {
+        return;
+      }
+      while (tryMoveAgainstBoard(state.board, player.active, 0, 1)) {
         // Intentionally empty: the move function mutates one deterministic row at a time.
       }
       player.pendingLock = true;
@@ -200,6 +201,24 @@ function applyMovementInput(state: RoomState, player: PlayerGameState, action: Q
     case "hold":
       return;
   }
+}
+
+function applyVerticalFall(state: RoomState, player: PlayerGameState): void {
+  if (!player.active) {
+    return;
+  }
+
+  const moved = { ...player.active, y: player.active.y + 1 };
+  if (collidesWithBoard(state.board, moved)) {
+    player.pendingLock = true;
+    return;
+  }
+
+  if (collidesWithOtherActivePiece(state, player.slot, moved)) {
+    return;
+  }
+
+  player.active.y = moved.y;
 }
 
 function applyHold(state: RoomState, player: PlayerGameState): boolean {
@@ -213,12 +232,12 @@ function applyHold(state: RoomState, player: PlayerGameState): boolean {
   player.canHold = false;
 
   if (incoming) {
-    player.active = createActivePiece(incoming);
+    player.active = createActivePiece(incoming, player.slot);
   } else {
     spawnNextPiece(state, player);
   }
 
-  if (player.active && collidesWithBoard(state.board, player.active)) {
+  if (player.active && collidesInRoom(state, player.slot, player.active)) {
     state.gameOver = true;
     state.status = "ended";
     state.winnerMessage = `${player.displayName} could not spawn after hold.`;
@@ -274,27 +293,37 @@ function spawnNextPiece(state: RoomState, player: PlayerGameState): void {
   }
 
   ensureQueue(player.queue, player.generatorState, player.slot, state.level, QUEUE_PREVIEW);
-  player.active = createActivePiece(next);
+  player.active = createActivePiece(next, player.slot);
   player.pendingLock = false;
 
-  if (collidesWithBoard(state.board, player.active)) {
+  if (collidesInRoom(state, player.slot, player.active)) {
     state.gameOver = true;
     state.status = "ended";
     state.winnerMessage = `${player.displayName} topped out.`;
   }
 }
 
-function createActivePiece(type: TetrominoType): ActivePiece {
+function createActivePiece(type: TetrominoType, slot: PlayerSlot): ActivePiece {
   const matrix = matrixFor(type);
   return {
     type,
     matrix,
-    x: Math.floor(COLS / 2) - Math.floor(matrix[0].length / 2),
+    x: slot === "A" ? 1 : COLS - matrix[0].length - 1,
     y: -1,
   };
 }
 
-function tryMove(board: Board, piece: ActivePiece, dx: number, dy: number): boolean {
+function tryMove(state: RoomState, slot: PlayerSlot, piece: ActivePiece, dx: number, dy: number): boolean {
+  const moved = { ...piece, x: piece.x + dx, y: piece.y + dy };
+  if (collidesInRoom(state, slot, moved)) {
+    return false;
+  }
+  piece.x = moved.x;
+  piece.y = moved.y;
+  return true;
+}
+
+function tryMoveAgainstBoard(board: Board, piece: ActivePiece, dx: number, dy: number): boolean {
   const moved = { ...piece, x: piece.x + dx, y: piece.y + dy };
   if (collidesWithBoard(board, moved)) {
     return false;
@@ -304,17 +333,52 @@ function tryMove(board: Board, piece: ActivePiece, dx: number, dy: number): bool
   return true;
 }
 
-function tryRotate(board: Board, piece: ActivePiece, direction: "cw" | "ccw"): boolean {
+function tryRotate(state: RoomState, slot: PlayerSlot, piece: ActivePiece, direction: "cw" | "ccw"): boolean {
   const rotated = rotate(piece.matrix, direction);
   for (const offset of [0, -1, 1, -2, 2]) {
     const candidate = { ...piece, matrix: rotated, x: piece.x + offset };
-    if (!collidesWithBoard(board, candidate)) {
+    if (!collidesInRoom(state, slot, candidate)) {
       piece.matrix = rotated;
       piece.x += offset;
       return true;
     }
   }
   return false;
+}
+
+function collidesInRoom(state: RoomState, slot: PlayerSlot, piece: ActivePiece): boolean {
+  return collidesWithBoard(state.board, piece) || collidesWithOtherActivePiece(state, slot, piece);
+}
+
+function collidesWithOtherActivePiece(state: RoomState, slot: PlayerSlot, piece: ActivePiece): boolean {
+  const otherSlot: PlayerSlot = slot === "A" ? "B" : "A";
+  const other = state.players[otherSlot]?.active;
+  if (!other) {
+    return false;
+  }
+
+  const occupied = new Set(
+    cellsFor(other)
+      .filter((cell) => cell.y >= 0)
+      .map((cell) => `${cell.x}:${cell.y}`),
+  );
+
+  return cellsFor(piece)
+    .filter((cell) => cell.y >= 0)
+    .some((cell) => occupied.has(`${cell.x}:${cell.y}`));
+}
+
+function hardDropWouldOverlapOtherAtBoardLanding(state: RoomState, slot: PlayerSlot, piece: ActivePiece): boolean {
+  const candidate: ActivePiece = {
+    ...piece,
+    matrix: piece.matrix.map((row) => [...row]),
+  };
+
+  while (!collidesWithBoard(state.board, { ...candidate, y: candidate.y + 1 })) {
+    candidate.y += 1;
+  }
+
+  return collidesWithOtherActivePiece(state, slot, candidate);
 }
 
 function rotate(matrix: Matrix, direction: "cw" | "ccw"): Matrix {
