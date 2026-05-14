@@ -347,7 +347,7 @@ button:disabled {
   .mobile-controls {
     order: 4;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
     position: sticky;
     bottom: 6px;
@@ -367,6 +367,17 @@ button:disabled {
     font-size: 0.76rem;
     touch-action: manipulation;
     user-select: none;
+  }
+
+  .optional-controls {
+    display: none;
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .mobile-controls.is-expanded .optional-controls {
+    display: grid;
   }
 }
 

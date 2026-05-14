@@ -44,6 +44,8 @@ const scoreF = mustGet<HTMLSpanElement>("score");
 const levelF = mustGet<HTMLSpanElement>("level");
 const linesF = mustGet<HTMLSpanElement>("lines");
 const holdF = mustGet<HTMLSpanElement>("hold");
+const mobileControls = document.querySelector<HTMLElement>(".mobile-controls");
+const mobileControlsToggle = document.getElementById("mobileControlsToggle");
 const mobileControlButtons = Array.from(document.querySelectorAll<HTMLButtonElement>(".mobile-controls button[data-action]"));
 
 let socket: GameSocket | null = null;
@@ -56,6 +58,8 @@ let touchStartAt = 0;
 
 const TAP_MAX_DISTANCE = 24;
 const SWIPE_MIN_DISTANCE = 34;
+const HORIZONTAL_SWIPE_STEP = 42;
+const MAX_HORIZONTAL_SWIPE_INPUTS = 6;
 const HARD_DROP_DISTANCE = 110;
 
 startBtn.addEventListener("click", () => {
@@ -83,6 +87,11 @@ mobileControlButtons.forEach((button) => {
       sendInput(action);
     }
   });
+});
+
+mobileControlsToggle?.addEventListener("click", () => {
+  const expanded = mobileControls?.classList.toggle("is-expanded") ?? false;
+  mobileControlsToggle.setAttribute("aria-expanded", String(expanded));
 });
 
 canvas.addEventListener("touchstart", (event) => {
@@ -119,7 +128,7 @@ canvas.addEventListener("touchend", (event) => {
   } else if (absY > absX && dy > SWIPE_MIN_DISTANCE) {
     sendInput("softDrop");
   } else if (absX > SWIPE_MIN_DISTANCE) {
-    sendInput(dx > 0 ? "moveRight" : "moveLeft");
+    sendRepeatedInput(dx > 0 ? "moveRight" : "moveLeft", horizontalSwipeSteps(absX));
   }
 
   event.preventDefault();
@@ -452,6 +461,19 @@ function keyToAction(event: KeyboardEvent): InputAction | null {
     default:
       return null;
   }
+}
+
+function sendRepeatedInput(action: InputAction, count: number): void {
+  for (let i = 0; i < count; i++) {
+    sendInput(action);
+  }
+}
+
+function horizontalSwipeSteps(distance: number): number {
+  return Math.min(
+    MAX_HORIZONTAL_SWIPE_INPUTS,
+    Math.max(1, Math.floor(distance / HORIZONTAL_SWIPE_STEP)),
+  );
 }
 
 function isInputAction(value: string | undefined): value is InputAction {

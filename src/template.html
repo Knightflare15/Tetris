@@ -49,12 +49,15 @@
             </aside>
 
             <section class="mobile-controls" aria-label="Mobile controls">
-                <button type="button" data-action="moveLeft" aria-label="Move left">Left</button>
-                <button type="button" data-action="rotateCW" aria-label="Rotate">Rotate</button>
-                <button type="button" data-action="moveRight" aria-label="Move right">Right</button>
-                <button type="button" data-action="softDrop" aria-label="Soft drop">Down</button>
-                <button type="button" data-action="hardDrop" aria-label="Hard drop">Drop</button>
+                <button type="button" id="mobileControlsToggle" aria-expanded="false">Controls</button>
                 <button type="button" data-action="hold" aria-label="Hold">Hold</button>
+                <div class="optional-controls" id="optionalControls">
+                    <button type="button" data-action="moveLeft" aria-label="Move left">Left</button>
+                    <button type="button" data-action="rotateCW" aria-label="Rotate">Rotate</button>
+                    <button type="button" data-action="moveRight" aria-label="Move right">Right</button>
+                    <button type="button" data-action="softDrop" aria-label="Soft drop">Down</button>
+                    <button type="button" data-action="hardDrop" aria-label="Hard drop">Drop</button>
+                </div>
             </section>
         </div>
     </main>
