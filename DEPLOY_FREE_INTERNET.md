@@ -202,6 +202,14 @@ DISCONNECT_GRACE_MS=30000
 SCM_DO_BUILD_DURING_DEPLOYMENT=true
 ```
 
+If Prisma/SQL login is enabled, also add:
+
+```text
+DATABASE_URL=<your Azure SQL connection string>
+```
+
+If `DATABASE_URL` is not set, the app should still start and guest mode should still work.
+
 Generate `JWT_SECRET` locally:
 
 ```bash
@@ -383,6 +391,35 @@ Check:
 - `npm run build` ran;
 - `dist/server/index.js` exists;
 - `JWT_SECRET` exists.
+- Prisma Client generated during build.
+
+After adding Prisma, the build must run `prisma generate` before the server starts. This project does that through:
+
+```text
+npm run build
+```
+
+and Azure can also detect:
+
+```text
+npm run build:azure
+```
+
+If App Service starts but immediately exits, check Log stream for:
+
+```text
+JWT_SECRET must be set in production
+Cannot find module dist/server/index.js
+@prisma/client did not initialize
+Environment variable not found: DATABASE_URL
+```
+
+Fixes:
+
+- missing `JWT_SECRET`: add it in App Service Environment variables;
+- missing `dist/server/index.js`: ensure `SCM_DO_BUILD_DURING_DEPLOYMENT=true`, redeploy, and confirm GitHub deploy ran `npm run build`;
+- Prisma client missing: ensure the latest `package.json` includes `build:azure` and `build` runs `prisma:generate`;
+- database URL issue: add a valid `DATABASE_URL`, or temporarily remove it and use Guest mode until SQL is ready.
 
 ### Page loads but matchmaking fails
 
