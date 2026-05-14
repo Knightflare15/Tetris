@@ -33,7 +33,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: .
+          include-hidden-files: true
+          path: |
+            .
+            !.git/**
+            !.env
+            !.env.*
 
   deploy:
     runs-on: ubuntu-latest
@@ -62,4 +67,3 @@ jobs:
           app-name: 'TMason'
           slot-name: 'Production'
           package: .
-          
