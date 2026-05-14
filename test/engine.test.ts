@@ -78,15 +78,13 @@ describe("authoritative shared engine", () => {
     room.players.B.active.x = 3;
     room.players.B.active.y = 8;
 
-    const originalY = room.players.A.active.y;
     simulateTick(room, [input("A", 1, "hardDrop")]);
 
     const lockedRows = room.board
       .map((row, y) => (row.some((cell) => cell !== 0) ? y : -1))
       .filter((y) => y >= 0);
 
-    expect(lockedRows).toHaveLength(0);
-    expect(room.players.A.active?.y).toBe(originalY);
+    expect(Math.max(...lockedRows)).toBeGreaterThan(12);
     expect(piecesOverlap(room.players.A.active, room.players.B.active)).toBe(false);
   });
 

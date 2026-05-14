@@ -1,162 +1,92 @@
-# Step-By-Step Azure Guide: Play Over The Internet
+# Evening Deployment Plan: Get mason Online
 
-This guide explains how to take the local cooperative multiplayer Tetris project and deploy it so two people on different devices can play together across the internet.
+This is a step-by-step guide to get the current `mason` multiplayer Tetris game working online today, then extend it with the support/identity learning pieces from `INTERVIEW_WORKFLOW_OKTA_SUPPORT.md`.
 
-It also explains how to fit a real Azure database into the workflow for accounts, friends, previous teammates, match history, and highscores.
-
-## Target Architecture
+The goal for this evening is:
 
 ```text
-Player 1 Browser
-        |
-        | HTTPS + Socket.IO
-        v
+Two people on different devices can open one public Azure URL, click Find Match, and play together.
+```
+
+The stretch goal is:
+
+```text
+Add support-style diagnostics and prepare the path for Azure SQL auth/friends/history.
+```
+
+## What You Are Deploying Today
+
+Current working architecture:
+
+```text
+Browser
+  |
+  | HTTPS + Socket.IO
+  v
 Azure App Service Free F1
-        |
-        | SQL connection
-        v
-Azure SQL Database Free Offer
-        ^
-        |
-Player 2 Browser
+  |
+  | in-memory rooms and matchmaking
+  v
+Node.js authoritative game server
 ```
 
-The final production-style goal is:
+What works now:
 
-- Azure App Service runs the Node.js server.
-- The same Node.js server serves the frontend.
-- Socket.IO handles realtime multiplayer.
-- Azure SQL stores durable player data.
-- Live game rooms stay in server memory.
-- The backend remains authoritative.
-
-## Current Project Status
-
-The current code already supports the internet multiplayer foundation:
-
-- Node.js backend.
-- Express static frontend hosting.
-- Socket.IO websocket multiplayer.
-- JWT-protected websocket connection.
-- Demo JWT auth endpoint.
-- Matchmaking.
-- Server-authoritative room simulation.
-- Reconnect token support.
+- public frontend served by Node;
+- Socket.IO realtime multiplayer;
+- demo JWT auth;
+- matchmaking;
+- server-authoritative Tetris rooms;
+- reconnect token;
+- health endpoint;
+- structured logs;
 - Docker support.
-- Health endpoint.
 
-The current code does **not yet** have persistent database-backed accounts/friends/history. That is the next implementation phase.
-
-So there are two deployment tracks:
-
-1. Deploy the current realtime game now.
-2. Add Azure SQL for real login/friends/history, then redeploy.
-
-Both are explained below.
-
-## Why Azure SQL Instead Of PostgreSQL Here?
-
-If your main goal is learning Azure, use **Azure SQL Database** for this project.
-
-Reasons:
-
-- It is a native Azure managed database service.
-- It has a useful free offer for learning/demo workloads.
-- It teaches Azure connection strings, firewall rules, query tools, app settings, and managed cloud databases.
-- It is enough for users, friends, refresh tokens, match history, and leaderboards.
-
-You can use PostgreSQL later if you want, but Azure SQL fits your Azure-learning path better.
-
-## What The Database Should Store
-
-Use the database for durable user/social/history data:
+What is planned next:
 
 ```text
-users
-  id
-  username
-  email
-  display_name
-  password_hash
-  created_at
-  updated_at
-  last_login_at
-
-refresh_tokens
-  id
-  user_id
-  token_hash
-  expires_at
-  revoked_at
-  created_at
-
-friend_requests
-  id
-  sender_user_id
-  receiver_user_id
-  status
-  created_at
-  responded_at
-
-friendships
-  id
-  user_a_id
-  user_b_id
-  created_at
-
-matches
-  id
-  room_id
-  status
-  score
-  level
-  lines
-  started_at
-  ended_at
-
-match_players
-  id
-  match_id
-  user_id
-  slot
-  disconnected_count
-  final_score
-  final_level
-  final_lines
-
-leaderboard_scores
-  id
-  user_id
-  score
-  level
-  lines
-  match_id
-  created_at
-
-recent_teammates
-  id
-  user_id
-  teammate_user_id
-  match_count
-  last_played_at
+Azure SQL Database
+  users
+  friends
+  refresh tokens
+  match history
+  highscores
 ```
 
-Do **not** store these in the database yet:
+Do not block tonight's deployment on the database. The current game can go online first.
 
-- every server tick;
-- every movement input;
-- active piece position every frame;
-- live board state for every room.
+## Official Azure Facts This Guide Relies On
 
-Keep live game state in memory. Store completed match summaries and user data in Azure SQL.
+- App Service app settings are exposed to Node apps as environment variables.
+- App Service supports WebSockets, but they must be enabled in App Service configuration.
+- Azure SQL Database has a free offer suitable for learning/demo usage.
 
-## Phase 1: Deploy The Current Game For Internet Play
+Useful docs:
 
-This phase gets two people playing over the internet with the current demo auth system.
+- [Configure App Service apps](https://learn.microsoft.com/en-us/azure/app-service/configure-common)
+- [Use WebSockets with Azure App Service](https://learn.microsoft.com/en-us/azure/app-service/configure-common#configure-general-settings)
+- [Azure SQL Database free offer](https://learn.microsoft.com/en-us/azure/azure-sql/database/free-offer)
 
-### Step 1: Confirm Local Build Works
+## Tonight's Timeline
 
-Run:
+Use this order:
+
+```text
+1. Verify local production build
+2. Push to GitHub
+3. Create Azure App Service
+4. Configure environment variables
+5. Enable WebSockets
+6. Deploy from GitHub
+7. Verify /health
+8. Test two-device matchmaking
+9. Check logs and document one support workflow
+10. Only then think about Azure SQL
+```
+
+## Phase 1: Local Production Check
+
+Run from the project root:
 
 ```bash
 npm install
@@ -172,7 +102,7 @@ Open:
 http://localhost:3000/health
 ```
 
-Expected:
+Expected response:
 
 ```json
 {
@@ -188,24 +118,37 @@ Then open:
 http://localhost:3000
 ```
 
-For local two-player testing, open two tabs and click `Find Match` in both.
+Local two-player check:
 
-### Step 2: Push Code To GitHub
+1. Open two browser tabs.
+2. Enter two different names.
+3. Click `Find Match` in both.
+4. Confirm both tabs enter the same game.
 
-Commit your work:
+If this fails locally, fix local before deploying.
+
+## Phase 2: Push To GitHub
+
+Check files:
+
+```bash
+git status
+```
+
+Commit:
 
 ```bash
 git add .
-git commit -m "Add authoritative multiplayer Tetris"
+git commit -m "Prepare mason for Azure internet deployment"
 ```
 
-Push it:
+Push:
 
 ```bash
 git push
 ```
 
-If this is a new repo:
+If this is a new repository:
 
 ```bash
 git remote add origin https://github.com/<your-user>/<your-repo>.git
@@ -213,32 +156,32 @@ git branch -M main
 git push -u origin main
 ```
 
-### Step 3: Create Azure App Service
+## Phase 3: Create Azure App Service
 
 In Azure Portal:
 
-1. Search for `App Services`.
+1. Search `App Services`.
 2. Click `Create`.
 3. Choose `Web App`.
-4. Select your subscription.
-5. Create or choose a resource group.
-6. App name: choose something unique, for example `coop-tetris-yourname`.
-7. Publish: `Code`.
-8. Runtime stack: `Node`.
-9. Node version: Node 20 or newer.
-10. Operating system: Linux.
-11. Region: closest to your players.
-12. Pricing plan: `Free F1`.
+4. Resource group: create one, for example `mason-rg`.
+5. Name: choose a unique name, for example `mason-tetris-yourname`.
+6. Publish: `Code`.
+7. Runtime stack: `Node`.
+8. Node version: Node 20 or newer.
+9. Operating system: Linux.
+10. Region: nearest to you/players.
+11. Pricing plan: Free F1.
+12. Review and create.
 
-After creation, Azure gives you a public URL:
+Your public URL will look like:
 
 ```text
-https://coop-tetris-yourname.azurewebsites.net
+https://mason-tetris-yourname.azurewebsites.net
 ```
 
-### Step 4: Add App Service Environment Variables
+## Phase 4: Configure Environment Variables
 
-In your App Service:
+In the App Service:
 
 ```text
 Settings -> Environment variables
@@ -260,9 +203,9 @@ Generate `JWT_SECRET` locally:
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-Do not use the development default secret in production.
+Do not paste quotes around the secret in Azure.
 
-### Step 5: Set Startup Command
+## Phase 5: Configure Startup And WebSockets
 
 In App Service:
 
@@ -276,29 +219,17 @@ Set Startup Command:
 npm start
 ```
 
-This runs:
-
-```bash
-node dist/server/index.js
-```
-
-### Step 6: Enable WebSockets
-
-In App Service:
-
-```text
-Settings -> Configuration -> General settings
-```
-
 Enable:
 
 ```text
 Web sockets: On
 ```
 
-This matters because Socket.IO needs websocket support for stable realtime multiplayer.
+Save changes.
 
-### Step 7: Connect GitHub Deployment
+This matters because Socket.IO needs long-lived websocket connections for realtime multiplayer.
+
+## Phase 6: Deploy From GitHub
 
 In App Service:
 
@@ -309,13 +240,12 @@ Deployment -> Deployment Center
 Choose:
 
 - Source: GitHub
-- Organization: your GitHub account
-- Repository: this project
+- Repo: this project
 - Branch: `main`
 
-Azure can create the GitHub Actions workflow automatically.
+Let Azure generate a GitHub Actions deployment if prompted.
 
-Your deployment needs to run:
+The deployment must run:
 
 ```bash
 npm install
@@ -323,7 +253,7 @@ npm run build
 npm start
 ```
 
-The production build creates:
+The build creates:
 
 ```text
 dist/public
@@ -331,7 +261,13 @@ dist/server
 dist/shared
 ```
 
-### Step 8: Verify Public Health Check
+The server entry is:
+
+```text
+dist/server/index.js
+```
+
+## Phase 7: Verify The Public App
 
 Open:
 
@@ -349,150 +285,272 @@ Expected:
 }
 ```
 
-### Step 9: Play From Two Devices
+Then open:
 
-1. Open the Azure URL on device 1.
-2. Open the same Azure URL on device 2.
-3. Enter player names.
-4. Click `Find Match` on both devices.
-5. The server pairs both sockets into one room.
+```text
+https://<your-app-name>.azurewebsites.net
+```
+
+You should see the `mason` UI.
+
+## Phase 8: Two-Device Internet Test
+
+Use two real devices if possible.
+
+1. Device A opens the Azure URL.
+2. Device B opens the same Azure URL.
+3. Both enter names.
+4. Both click `Find Match`.
+5. Confirm both join the same room.
+6. Move pieces on both devices.
+7. Test hold.
+8. Test hard drop.
+9. Test reconnect within 30 seconds.
 
 Important:
 
 ```text
-Do not use localhost for internet play.
+Do not use localhost for internet testing.
+Both players must use the Azure URL.
 ```
 
-Both players must use the public Azure URL.
+## Phase 9: Check Logs Like A Support Engineer
 
-### Step 10: Test Reconnect
-
-1. Start a match.
-2. Close one browser tab.
-3. Reopen the same Azure URL on the same browser/device.
-4. Click `Reconnect`.
-
-Reconnect works during:
+In Azure App Service:
 
 ```text
-DISCONNECT_GRACE_MS=30000
+Monitoring -> Log stream
 ```
 
-That is 30 seconds by default.
+Look for:
 
-## Phase 2: Add Azure SQL For Real Accounts And Friends
+- server startup log;
+- socket connected;
+- player queued;
+- room created;
+- simulation diagnostics;
+- disconnect logs;
+- reconnect logs.
 
-This is the next backend implementation phase.
+This is the support workflow from `INTERVIEW_WORKFLOW_OKTA_SUPPORT.md`.
 
-The goal is to replace demo auth with real user accounts and store:
-
-- username/password login;
-- friend requests;
-- accepted friends;
-- previously paired people;
-- match history;
-- highscores;
-- refresh tokens.
-
-### Step 1: Create Azure SQL Database
-
-In Azure Portal:
-
-1. Search for `SQL databases`.
-2. Click `Create`.
-3. Choose your existing resource group.
-4. Database name: `coop-tetris-db`.
-5. Server: create a new SQL server.
-6. Authentication: SQL authentication is easiest for learning.
-7. Choose an admin username and password.
-8. Workload environment: Development.
-9. Compute tier: choose the free/basic option available to your account.
-10. Review and create.
-
-Save:
-
-- server name;
-- database name;
-- admin username;
-- admin password.
-
-### Step 2: Allow Azure App Service To Connect
-
-In the SQL Server resource:
+Example issue:
 
 ```text
-Security -> Networking
+Customer says: "My friend cannot join my game."
 ```
 
-Enable:
+Your troubleshooting path:
 
-```text
-Allow Azure services and resources to access this server
-```
+1. Check `/health`.
+2. Check browser DevTools websocket connection.
+3. Check Azure WebSockets setting.
+4. Check logs for `socket connected`.
+5. Check logs for `player queued`.
+6. Check logs for `room created`.
+7. Check whether either socket disconnected.
+8. Explain root cause and fix.
 
-For local development, add your own current IP address to the firewall rules.
+## Phase 10: Evening Success Checklist
 
-### Step 3: Add Database Connection String To App Service
+You are done for tonight when:
 
-In App Service:
+- [ ] `npm run build` works locally.
+- [ ] GitHub has the latest code.
+- [ ] Azure App Service exists.
+- [ ] `JWT_SECRET` is configured.
+- [ ] WebSockets are enabled.
+- [ ] Startup command is `npm start`.
+- [ ] `/health` works publicly.
+- [ ] Two devices can open the public URL.
+- [ ] Two players can matchmake.
+- [ ] You can explain one debugging workflow from logs.
 
-```text
-Settings -> Environment variables
-```
+## If Deployment Fails
+
+### `/health` does not load
+
+Check:
+
+- deployment logs;
+- Node version;
+- startup command;
+- `npm run build` ran;
+- `dist/server/index.js` exists;
+- `JWT_SECRET` exists.
+
+### Page loads but matchmaking fails
+
+Check:
+
+- WebSockets enabled;
+- browser DevTools Network tab;
+- `/socket.io` request status;
+- App Service log stream;
+- both users clicked `Find Match`.
+
+### App works locally but not Azure
+
+Check:
+
+- app settings saved;
+- app restarted after settings changes;
+- deployment branch is correct;
+- GitHub Actions completed successfully.
+
+### First load is slow
+
+Free App Service can cold start. That is expected.
+
+### Active rooms disappear
+
+Rooms are in memory. If the free App Service restarts or sleeps, rooms disappear. This is acceptable for the demo.
+
+## Phase 11: Add Supportability Features Next
+
+These are the best additions for the Okta-style JD.
+
+### Add A Debug Health Endpoint
 
 Add:
 
 ```text
-DATABASE_URL=<your-azure-sql-connection-string>
+GET /debug/status
 ```
 
-Example shape:
+Return:
+
+- uptime;
+- active rooms count;
+- queued players count;
+- connected sockets count;
+- node environment;
+- app version.
+
+Why:
+
+This gives you a support diagnostic endpoint to discuss in the interview.
+
+### Add Correlation IDs
+
+Add request/socket correlation ids to logs:
+
+```text
+requestId
+socketId
+userId
+roomId
+```
+
+Why:
+
+Support engineers need to trace a customer issue across systems.
+
+### Add Runbooks
+
+Create:
+
+```text
+docs/runbooks/websocket-failure.md
+docs/runbooks/matchmaking-stuck.md
+docs/runbooks/reconnect-failed.md
+docs/runbooks/auth-failed.md
+```
+
+Why:
+
+The JD mentions tickets, troubleshooting, root cause, and customer satisfaction.
+
+## Phase 12: Add Azure SQL After The Game Is Online
+
+Do this after tonight's multiplayer deployment works.
+
+Target architecture:
+
+```text
+Azure App Service
+  Node.js app
+  Socket.IO game server
+  REST auth/friends APIs
+
+Azure SQL Database
+  users
+  refresh tokens
+  friend requests
+  friendships
+  matches
+  leaderboard scores
+```
+
+Use Azure SQL for durable data:
+
+- usernames;
+- password hashes;
+- refresh tokens;
+- friends;
+- previous teammates;
+- match history;
+- highscores.
+
+Do not use Azure SQL for:
+
+- live board state;
+- every tick;
+- every movement input;
+- active piece positions.
+
+Live rooms stay in memory.
+
+## Azure SQL Setup Steps
+
+1. Azure Portal -> `SQL databases`.
+2. Create database: `mason-db`.
+3. Create SQL server.
+4. Choose free/basic option available in your subscription.
+5. Save server/database/admin credentials.
+6. In SQL server networking, allow Azure services.
+7. Add your local IP for development.
+8. Add `DATABASE_URL` to App Service environment variables.
+
+Example connection string shape:
 
 ```text
 sqlserver://<server>.database.windows.net:1433;database=<db>;user=<user>;password=<password>;encrypt=true;trustServerCertificate=false
 ```
 
-Exact connection string depends on the database library we choose.
+Exact format depends on the database library.
 
-### Step 4: Add A Database Library
+## Recommended Database Library
 
-Recommended options:
+Use Prisma for the learning version.
 
-```text
-Option A: Prisma
-  Best for readable schema and migrations.
+Why:
 
-Option B: Drizzle
-  Lighter and closer to SQL.
+- readable schema;
+- migrations;
+- easy to explain;
+- good TypeScript support.
 
-Option C: mssql
-  Direct Azure SQL driver, more manual.
-```
+Alternatives:
 
-For this project, use **Prisma** unless you specifically want to learn lower-level SQL.
+- `mssql`: more direct, more manual;
+- Drizzle: lighter, but more SQL-oriented;
+- PostgreSQL: great generally, but Azure SQL teaches more native Azure workflow here.
 
-### Step 5: Add Database Schema
-
-Create the schema for:
-
-- `User`
-- `RefreshToken`
-- `FriendRequest`
-- `Friendship`
-- `Match`
-- `MatchPlayer`
-- `LeaderboardScore`
-- `RecentTeammate`
-
-### Step 6: Replace Demo Auth
-
-Current auth is:
+## Tables To Add
 
 ```text
-POST /auth/demo
+users
+refresh_tokens
+friend_requests
+friendships
+matches
+match_players
+leaderboard_scores
+recent_teammates
 ```
 
-Real auth should become:
+## Auth APIs To Add
 
 ```text
 POST /auth/register
@@ -502,16 +560,14 @@ POST /auth/logout
 GET  /auth/me
 ```
 
-Password rules:
+Rules:
 
-- Never store raw passwords.
-- Store only `argon2` or `bcrypt` hashes.
-- Use short-lived access JWTs.
-- Store hashed refresh tokens in Azure SQL.
+- never store raw passwords;
+- hash passwords with `argon2` or `bcrypt`;
+- use short-lived access JWTs;
+- store hashed refresh tokens in Azure SQL.
 
-### Step 7: Add Friends APIs
-
-Add:
+## Friends APIs To Add
 
 ```text
 POST /friends/request
@@ -521,16 +577,9 @@ GET  /friends/requests
 GET  /friends/recent-teammates
 ```
 
-Behavior:
+## Invite Flow To Add
 
-- users can send friend requests by username;
-- receiver can accept or reject;
-- accepted friends can be invited to play;
-- previous teammates appear in recent teammates.
-
-### Step 8: Add Friend Invite Flow
-
-Add websocket events:
+Socket events:
 
 ```text
 friendInvite
@@ -538,206 +587,37 @@ friendInviteAccepted
 friendInviteDeclined
 ```
 
-Room behavior:
+Flow:
 
-- if invited friend accepts, create a room directly;
-- skip random matchmaking;
-- both players receive `roomJoined`.
+1. Player A invites online friend B.
+2. Server checks friendship.
+3. Server sends invite to B.
+4. B accepts.
+5. Server creates room directly.
+6. Both clients receive `roomJoined`.
 
-### Step 9: Save Match Results
+## Where Redis Comes Later
 
-When a room ends, save:
+Redis is not required for tonight.
 
-- room id;
-- players;
-- score;
-- level;
-- lines;
-- started/ended time;
-- disconnect counts;
-- leaderboard score;
-- recent teammate relationship.
+Use Redis later for:
 
-Do this at room end, not every tick.
+- online presence across multiple server instances;
+- shared matchmaking queue;
+- pending friend invites;
+- rate limiting;
+- Socket.IO multi-instance adapter.
 
-### Step 10: Add Leaderboard APIs
+For Azure Free F1, one Node instance with in-memory matchmaking is fine.
 
-Add:
+## Interview Talking Point
 
-```text
-GET /leaderboard/global
-GET /leaderboard/me
-GET /matches/recent
-```
-
-This lets users see:
-
-- best global scores;
-- their own best runs;
-- previously paired players;
-- match history.
-
-## Phase 3: Redeploy With Database Support
-
-After adding DB-backed auth:
-
-1. Push code to GitHub.
-2. Ensure `DATABASE_URL` is set in App Service.
-3. Run migrations during deployment.
-4. Restart App Service.
-5. Test register/login.
-6. Test friend request.
-7. Test invite friend.
-8. Test completed match writes to DB.
-9. Test leaderboard.
-
-Recommended deployment script after DB phase:
-
-```bash
-npm install
-npm run build
-npx prisma migrate deploy
-npm start
-```
-
-## Local Development With Azure SQL
-
-After Azure SQL exists, you can connect your local server to it.
-
-Local `.env`:
+Use this:
 
 ```text
-NODE_ENV=development
-PORT=3000
-CLIENT_ORIGIN=http://localhost:8080
-JWT_SECRET=<local-secret>
-DATABASE_URL=<azure-sql-connection-string>
-DISCONNECT_GRACE_MS=30000
-LOG_LEVEL=debug
+I first deployed the realtime game with App Service, WebSockets, JWT auth, health checks, and structured logs.
+Then I planned Azure SQL for identity and social data, keeping live game state in memory because SQL is not appropriate for per-tick simulation.
+For supportability, I documented a customer issue workflow: verify health, inspect auth, inspect websocket connection, trace matchmaking logs, identify root cause, and communicate resolution.
 ```
 
-Then run:
-
-```bash
-npm run dev:server
-npm run dev:client
-```
-
-Your local app will use the cloud database.
-
-## What Must Stay Server-Authoritative
-
-Even after adding the database:
-
-- clients still send inputs only;
-- clients do not submit final scores directly;
-- clients do not choose pieces;
-- clients do not decide line clears;
-- clients do not update match history directly;
-- server writes match results after authoritative room end.
-
-This prevents cheating and keeps networking deterministic.
-
-## Azure Cost Control
-
-To stay free or close to free:
-
-- use App Service Free F1 for the app;
-- use the Azure SQL free offer/basic option;
-- avoid always-on paid tiers while learning;
-- delete unused resource groups;
-- set budget alerts in Azure Cost Management;
-- avoid logging every tick to external services;
-- avoid storing replay data until you need it.
-
-## Troubleshooting
-
-### Public Page Opens But Matchmaking Fails
-
-Check:
-
-- WebSockets are enabled.
-- Browser DevTools does not show Socket.IO connection errors.
-- App Service logs show socket connections.
-- Both players are on the same Azure URL.
-
-### Login Works Locally But Not On Azure
-
-Check:
-
-- `DATABASE_URL` exists in App Service settings.
-- Azure SQL firewall allows Azure services.
-- migrations ran successfully.
-- password in the connection string is escaped correctly.
-
-### `/health` Fails
-
-Check:
-
-- deployment succeeded;
-- `npm run build` ran;
-- startup command is `npm start`;
-- Node version is 20 or newer;
-- App Service logs for startup errors.
-
-### First Load Is Slow
-
-Free App Service can cold start. That is normal.
-
-### Rooms Disappear
-
-Rooms are in memory. If the App Service restarts, active rooms disappear.
-
-For a serious production version, add:
-
-- paid always-on app plan;
-- Redis for presence/invite state;
-- persistent match recovery or replay logs.
-
-Do not add those yet for this learning project.
-
-## Final Checklist For Internet Play
-
-Current MVP:
-
-- [ ] Code pushed to GitHub.
-- [ ] Azure App Service Free F1 created.
-- [ ] `JWT_SECRET` configured.
-- [ ] WebSockets enabled.
-- [ ] Startup command set to `npm start`.
-- [ ] `/health` returns OK.
-- [ ] Two devices can open the public URL.
-- [ ] Both players can click `Find Match`.
-
-Full account/friends version:
-
-- [ ] Azure SQL Database created.
-- [ ] SQL firewall configured.
-- [ ] `DATABASE_URL` added to App Service.
-- [ ] Real register/login implemented.
-- [ ] Password hashing implemented.
-- [ ] Refresh tokens stored in DB.
-- [ ] Friend requests implemented.
-- [ ] Friend invite flow implemented.
-- [ ] Match results saved at room end.
-- [ ] Leaderboard reads from DB.
-
-## Recommended Next Coding Task
-
-The next implementation task should be:
-
-```text
-Add Azure SQL-backed auth and social persistence.
-```
-
-Scope:
-
-- add Prisma or another SQL layer;
-- add user schema;
-- add register/login/refresh/logout;
-- hash passwords;
-- add friend requests;
-- save completed match summaries;
-- update the client UI for login/friends/invites.
-
-That will turn the current realtime multiplayer demo into a more complete cloud-backed multiplayer game.
+That maps directly to the JD's support, troubleshooting, web technology, SaaS, and identity themes.

@@ -41,7 +41,7 @@ The server runs one authoritative simulation per room. Clients receive snapshots
 - Room-level shared hold slot.
 - Deterministic shared hold conflict handling.
 - Deterministic simultaneous lock ordering.
-- Active pieces ignore each other while moving.
+- Active pieces are prevented from overlapping while moving.
 - Locked pieces are prevented from overlapping board cells.
 - Seeded weighted-bag piece generation.
 - Bias profiles that swap every 6 levels.
@@ -97,6 +97,8 @@ All clients render same state
 - `Dockerfile`: production container.
 - `deploy/azure.md`: Azure App Service deployment notes.
 
+Each new TypeScript script also has a nearby `*.README.md` file explaining what it does, why it exists, and where it fits in the larger architecture.
+
 ## Multiplayer Game Rules
 
 This is cooperative shared-board Tetris, not competitive versus Tetris.
@@ -105,7 +107,7 @@ This is cooperative shared-board Tetris, not competitive versus Tetris.
 - Each player has one active piece.
 - Each player has an independent upcoming queue.
 - The hold slot is shared at room level.
-- Active pieces are ghost-like relative to each other while moving.
+- Active pieces are blocked from overlapping each other while moving.
 - Active pieces still collide normally with walls, floor, and locked board cells.
 - Locked board cells are authoritative server state.
 - If both players lock in the same tick, the server resolves in deterministic slot order.
@@ -270,6 +272,8 @@ http://localhost:3000
 See `deploy/azure.md`.
 
 For a step-by-step guide to deploy the game for free so two people on different devices can play over the internet, see `DEPLOY_FREE_INTERNET.md`.
+
+For an Okta-style developer support interview workflow and recommended learning additions, see `INTERVIEW_WORKFLOW_OKTA_SUPPORT.md`.
 
 At minimum, configure:
 

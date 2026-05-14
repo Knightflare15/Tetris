@@ -3,42 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TetrShare</title>
+    <title>mason</title>
 </head>
 <body>
-    <div class="grid-layout">
+    <main class="app-shell">
+        <header class="app-header">
+            <h1>mason</h1>
+            <div class="status-pill"><span id="status">Offline</span></div>
+        </header>
 
-        <canvas id="tetris" width="300" height="600"></canvas>
-        <div class="Outerpanel">
-            <div class="panel" id="connectionPanel">
-                <h2>Co-op</h2>
-                <input id="displayName" maxlength="24" placeholder="Player name" />
-                <p>Status: <span id="status">Offline</span></p>
-                <p>Room: <span id="room">-</span></p>
-                <p>Slot: <span id="slot">-</span></p>
-                <p>Latency: <span id="latency">-</span></p>
-            </div>
-    
-            <div class="panel" id="statsPanel">
-                <h2>Stats</h2>
-                <p>Score: <span id="score">0</span></p>
-                <p>Level: <span id="level">1</span></p>
-                <p>Lines: <span id="lines">0</span></p>
-                <p>Hold: <span id="hold">-</span></p>
-                <canvas id="holdPreview" width="150" height="90"></canvas>
-            </div>
-    
-            <div class="panel" id="previewPanel">
-                <h2>Next</h2>
-                <canvas id="preview" width="150" height="250"></canvas>
-            </div>
-        </div>
+        <div class="grid-layout">
+            <aside class="left-panel">
+                <section class="panel" id="statsPanel">
+                    <h2>Stats</h2>
+                    <p><span>Score</span><strong id="score">0</strong></p>
+                    <p><span>Level</span><strong id="level">1</strong></p>
+                    <p><span>Lines</span><strong id="lines">0</strong></p>
+                    <p><span>Hold</span><strong id="hold">-</strong></p>
+                    <canvas id="holdPreview" width="150" height="90"></canvas>
+                </section>
 
-        <div class="controls">
-            <button id="startBtn">Find Match</button>
-            <button id="pauseBtn">Reconnect</button>
+                <div class="controls">
+                    <button id="startBtn">Find Match</button>
+                    <button id="pauseBtn">Reconnect</button>
+                </div>
+            </aside>
+
+            <section class="board-frame" aria-label="Tetris board">
+                <canvas id="tetris" width="300" height="600"></canvas>
+            </section>
+
+            <aside class="Outerpanel">
+                <section class="panel" id="connectionPanel">
+                    <h2>Co-op</h2>
+                    <input id="displayName" maxlength="24" placeholder="Player name" />
+                    <p><span>Room</span><strong id="room">-</strong></p>
+                    <p><span>Slot</span><strong id="slot">-</strong></p>
+                    <p><span>Latency</span><strong id="latency">-</strong></p>
+                </section>
+
+                <section class="panel" id="previewPanel">
+                    <h2>Next</h2>
+                    <canvas id="preview" width="150" height="250"></canvas>
+                </section>
+            </aside>
         </div>
-    </div>
+    </main>
 
 </body>
 </html>
