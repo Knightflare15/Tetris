@@ -44,11 +44,19 @@ const scoreF = mustGet<HTMLSpanElement>("score");
 const levelF = mustGet<HTMLSpanElement>("level");
 const linesF = mustGet<HTMLSpanElement>("lines");
 const holdF = mustGet<HTMLSpanElement>("hold");
+const mobileControlButtons = Array.from(document.querySelectorAll<HTMLButtonElement>(".mobile-controls button[data-action]"));
 
 let socket: GameSocket | null = null;
 let snapshot: RoomSnapshot | null = null;
 let inputSeq = 0;
 let localSlot: "A" | "B" | null = null;
+let touchStartX = 0;
+let touchStartY = 0;
+let touchStartAt = 0;
+
+const TAP_MAX_DISTANCE = 24;
+const SWIPE_MIN_DISTANCE = 34;
+const HARD_DROP_DISTANCE = 110;
 
 startBtn.addEventListener("click", () => {
   void connectAndQueue();
@@ -66,6 +74,56 @@ window.addEventListener("keydown", (event) => {
   event.preventDefault();
   sendInput(action);
 });
+
+mobileControlButtons.forEach((button) => {
+  button.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    const action = button.dataset.action;
+    if (isInputAction(action)) {
+      sendInput(action);
+    }
+  });
+});
+
+canvas.addEventListener("touchstart", (event) => {
+  if (event.touches.length !== 1) {
+    return;
+  }
+  const touch = event.touches[0];
+  touchStartX = touch.clientX;
+  touchStartY = touch.clientY;
+  touchStartAt = Date.now();
+  event.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener("touchmove", (event) => {
+  event.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener("touchend", (event) => {
+  const touch = event.changedTouches[0];
+  if (!touch) {
+    return;
+  }
+
+  const dx = touch.clientX - touchStartX;
+  const dy = touch.clientY - touchStartY;
+  const absX = Math.abs(dx);
+  const absY = Math.abs(dy);
+  const elapsed = Date.now() - touchStartAt;
+
+  if (absX < TAP_MAX_DISTANCE && absY < TAP_MAX_DISTANCE && elapsed < 450) {
+    sendInput("rotateCW");
+  } else if (absY > HARD_DROP_DISTANCE && dy > 0) {
+    sendInput("hardDrop");
+  } else if (absY > absX && dy > SWIPE_MIN_DISTANCE) {
+    sendInput("softDrop");
+  } else if (absX > SWIPE_MIN_DISTANCE) {
+    sendInput(dx > 0 ? "moveRight" : "moveLeft");
+  }
+
+  event.preventDefault();
+}, { passive: false });
 
 let pingTimer: number | null = null;
 renderEmpty();
@@ -394,6 +452,18 @@ function keyToAction(event: KeyboardEvent): InputAction | null {
     default:
       return null;
   }
+}
+
+function isInputAction(value: string | undefined): value is InputAction {
+  return (
+    value === "moveLeft" ||
+    value === "moveRight" ||
+    value === "softDrop" ||
+    value === "rotateCW" ||
+    value === "rotateCCW" ||
+    value === "hardDrop" ||
+    value === "hold"
+  );
 }
 
 function setStatus(value: string): void {
