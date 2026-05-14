@@ -10,8 +10,9 @@ This folder defines the planned database layer for real accounts, friends, match
 - The provider is `sqlserver`, which is the right direction for Azure SQL Database.
 - Real auth endpoints exist and use Prisma when `DATABASE_URL` is configured.
 - Guest mode still works without a database.
+- An initial SQL Server migration exists in `prisma/migrations`.
 
-The current deployed game can still use demo JWT auth and in-memory rooms. Database-backed login/register activates when `DATABASE_URL` points to a reachable SQL Server/Azure SQL database with migrations applied.
+The current deployed game can still use demo JWT auth and in-memory rooms. Database-backed login/register activates when the shared database URL points to a reachable SQL Server/Azure SQL database with migrations applied.
 
 ## Important Commands
 
@@ -27,6 +28,14 @@ Use `prisma:migrate` locally while developing schema changes.
 
 Use `prisma:deploy` in Azure deployment once migrations exist.
 
+For the current initial schema, run:
+
+```bash
+npm run prisma:deploy
+```
+
+after the Azure SQL database is reachable.
+
 ## Environment Variable
 
 Prisma needs:
@@ -35,7 +44,7 @@ Prisma needs:
 DATABASE_URL="sqlserver://<server>.database.windows.net:1433;database=<db>;user=<user>;password=<password>;encrypt=true;trustServerCertificate=false"
 ```
 
-`prisma generate` does not need to connect to the database. The project's `prisma.config.ts` provides a harmless placeholder SQL Server URL when `DATABASE_URL` is missing so CI/Azure builds can still compile.
+`prisma generate` does not need to connect to the database. The project's `prisma.config.ts` reads the shared database URL helper so CI/Azure builds and runtime code agree on the datasource.
 
 Real database operations still need `DATABASE_URL`:
 

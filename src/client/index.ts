@@ -22,6 +22,7 @@ type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
 interface StoredSession {
   token: string;
+  authMode?: "guest" | "account";
   roomId?: string;
   reconnectToken?: string;
 }
@@ -190,9 +191,9 @@ async function requestDemoToken(displayName: string): Promise<string> {
 async function authenticateAsGuest(): Promise<string> {
   setAuthMessage("Creating guest session...");
   const token = await requestDemoToken(displayNameInput.value || authUsernameInput.value || "Guest");
-  saveSession({ token });
-  authCard.classList.add("is-authenticated");
-  setAuthMessage("Guest session ready.");
+  saveSession({ token, authMode: "guest" });
+  authCard.classList.remove("is-authenticated");
+  setAuthMessage("Guest session ready. You can still login or register.");
   setStatus("Guest ready");
   return token;
 }
@@ -219,7 +220,7 @@ async function authenticateWithPassword(mode: "login" | "register"): Promise<voi
       return;
     }
 
-    saveSession({ token: body.token });
+    saveSession({ token: body.token, authMode: "account" });
     displayNameInput.value = body.user?.displayName ?? username;
     authCard.classList.add("is-authenticated");
     setAuthMessage("Signed in.");
@@ -247,11 +248,18 @@ function restoreStoredAuth(): void {
     headers: { authorization: `Bearer ${session.token}` },
   })
     .then((response) => (response.ok ? response.json() : null))
-    .then((body: { user?: { displayName?: string } } | null) => {
+    .then((body: { user?: { userId?: string; displayName?: string } } | null) => {
       if (body?.user?.displayName) {
         displayNameInput.value = body.user.displayName;
-        authCard.classList.add("is-authenticated");
-        setStatus("Signed in");
+        const authMode = session.authMode ?? (isGuestUserId(body.user.userId) ? "guest" : "account");
+        if (authMode === "account") {
+          authCard.classList.add("is-authenticated");
+          setStatus("Signed in");
+        } else {
+          authCard.classList.remove("is-authenticated");
+          setAuthMessage("Guest session restored. You can still login or register.");
+          setStatus("Guest ready");
+        }
         return;
       }
       clearStoredAuth("Session expired. Please sign in again or play as guest.");
@@ -625,6 +633,10 @@ function isAuthError(message: string): boolean {
     normalized.includes("invalid token") ||
     normalized.includes("authentication failed")
   );
+}
+
+function isGuestUserId(userId: string | undefined): boolean {
+  return userId?.startsWith("demo-") ?? false;
 }
 
 function colorFor(value: number): string {

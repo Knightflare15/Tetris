@@ -14,7 +14,10 @@ This is the visual and input layer. It should never decide score, collision, pie
 
 ## Important Functions
 
-- `connectAndQueue()`: gets a demo JWT, opens a socket, and joins matchmaking.
+- `connectAndQueue()`: gets or reuses a JWT, opens a socket, and joins matchmaking.
+- `authenticateAsGuest()`: creates a guest JWT while keeping login/register visible.
+- `authenticateWithPassword(...)`: calls login/register and stores an account session.
+- `restoreStoredAuth()`: verifies saved auth before trusting local storage.
 - `reconnectStoredSession()`: uses local reconnect data to rejoin a room.
 - `connectSocket(token)`: creates the Socket.IO client and registers event handlers.
 - `sendInput(action)`: sends input packets with sequence numbers.

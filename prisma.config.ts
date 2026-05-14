@@ -3,10 +3,7 @@
 // npm install --save-dev prisma dotenv
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
-
-const databaseUrl =
-  process.env.DATABASE_URL?.trim() ||
-  "sqlserver://tmason-server.database.windows.net:1433;database=tmason_db;user=tmasonadmin;password=Flare@101271;encrypt=true;trustServerCertificate=false";
+import { getDatabaseUrl } from "./src/server/databaseUrl";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -15,6 +12,6 @@ export default defineConfig({
   },
   engine: "classic",
   datasource: {
-    url: databaseUrl,
+    url: getDatabaseUrl(),
   },
 });

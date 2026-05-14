@@ -89,6 +89,9 @@ All clients render same state
 - `src/shared/rng.ts`: seedable RNG.
 - `src/server/index.ts`: Express/Socket.IO startup, health endpoint, static serving.
 - `src/server/authService.ts`: JWT creation and validation.
+- `src/server/databaseUrl.ts`: shared Prisma CLI/runtime database URL source.
+- `src/server/database.ts`: Prisma Client singleton and database configuration guard.
+- `src/server/passwordService.ts`: password hashing and verification.
 - `src/server/socketGateway.ts`: websocket auth, input handling, reconnect, ping.
 - `src/server/matchmakingService.ts`: duplicate-safe 2-player queue.
 - `src/server/roomManager.ts`: room lifecycle, input buffering, fixed tick loop.
@@ -96,6 +99,8 @@ All clients render same state
 - `test/engine.test.ts`: deterministic hold and lock behavior tests.
 - `Dockerfile`: production container.
 - `deploy/azure.md`: Azure App Service deployment notes.
+- `.github/workflows/codex_tmason.yml`: GitHub Actions build and Azure deployment workflow.
+- `docs/runbooks`: support-style troubleshooting notes for interview practice.
 
 Each new TypeScript script also has a nearby `*.README.md` file explaining what it does, why it exists, and where it fits in the larger architecture.
 
@@ -274,6 +279,12 @@ See `deploy/azure.md`.
 For a step-by-step guide to deploy the game for free so two people on different devices can play over the internet, see `DEPLOY_FREE_INTERNET.md`.
 
 For an Okta-style developer support interview workflow and recommended learning additions, see `INTERVIEW_WORKFLOW_OKTA_SUPPORT.md`.
+
+For specific support runbooks, see:
+
+- `docs/runbooks/auth-token-expired.README.md`
+- `docs/runbooks/azure-prisma-client-missing.README.md`
+- `docs/runbooks/websocket-matchmaking.README.md`
 
 At minimum, configure:
 
