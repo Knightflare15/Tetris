@@ -243,7 +243,6 @@ function restoreStoredAuth(): void {
     return;
   }
 
-  authCard.classList.add("is-authenticated");
   void fetch("/auth/me", {
     headers: { authorization: `Bearer ${session.token}` },
   })
@@ -251,11 +250,14 @@ function restoreStoredAuth(): void {
     .then((body: { user?: { displayName?: string } } | null) => {
       if (body?.user?.displayName) {
         displayNameInput.value = body.user.displayName;
+        authCard.classList.add("is-authenticated");
         setStatus("Signed in");
+        return;
       }
+      clearStoredAuth("Session expired. Please sign in again or play as guest.");
     })
     .catch(() => {
-      authCard.classList.remove("is-authenticated");
+      clearStoredAuth("Could not restore session. Please sign in again or play as guest.");
     });
 }
 
@@ -273,6 +275,11 @@ function connectSocket(token: string): void {
 
   socket.on("connect_error", (error) => {
     setStatus(`Connect error: ${error.message}`);
+    if (isAuthError(error.message)) {
+      clearStoredAuth("Session expired. Please sign in again or play as guest.");
+      socket?.disconnect();
+      socket = null;
+    }
   });
 
   socket.on("authenticated", ({ user }) => {
@@ -591,6 +598,14 @@ function saveSession(session: StoredSession): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
 }
 
+function clearStoredAuth(message?: string): void {
+  localStorage.removeItem(STORAGE_KEY);
+  authCard.classList.remove("is-authenticated");
+  if (message) {
+    setAuthMessage(message);
+  }
+}
+
 function loadSession(): StoredSession | null {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
@@ -601,6 +616,15 @@ function loadSession(): StoredSession | null {
   } catch {
     return null;
   }
+}
+
+function isAuthError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("jwt expired") ||
+    normalized.includes("invalid token") ||
+    normalized.includes("authentication failed")
+  );
 }
 
 function colorFor(value: number): string {
