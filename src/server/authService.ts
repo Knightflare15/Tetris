@@ -9,13 +9,23 @@ interface JwtPayload {
 export class AuthService {
   constructor(private readonly jwtSecret: string) {}
 
+  createToken(user: AuthUser): string {
+    return jwt.sign(
+      {
+        sub: user.userId,
+        displayName: user.displayName,
+      } satisfies JwtPayload,
+      this.jwtSecret,
+      { expiresIn: "2h" },
+    );
+  }
+
   createDemoToken(displayName: string): string {
     const safeName = displayName.trim().slice(0, 24) || "Player";
-    const payload: JwtPayload = {
-      sub: `demo-${safeName.toLowerCase().replace(/[^a-z0-9]/g, "")}-${Date.now()}`,
+    return this.createToken({
+      userId: `demo-${safeName.toLowerCase().replace(/[^a-z0-9]/g, "")}-${Date.now()}`,
       displayName: safeName,
-    };
-    return jwt.sign(payload, this.jwtSecret, { expiresIn: "2h" });
+    });
   }
 
   verifyToken(token: string): AuthUser {

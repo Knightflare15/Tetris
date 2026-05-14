@@ -35,6 +35,13 @@ const holdPreviewContext = getCanvasContext(holdPreview);
 
 const startBtn = mustGet<HTMLButtonElement>("startBtn");
 const reconnectBtn = mustGet<HTMLButtonElement>("pauseBtn");
+const authCard = mustGet<HTMLElement>("authCard");
+const authUsernameInput = mustGet<HTMLInputElement>("authUsername");
+const authPasswordInput = mustGet<HTMLInputElement>("authPassword");
+const authMessage = mustGet<HTMLElement>("authMessage");
+const loginBtn = mustGet<HTMLButtonElement>("loginBtn");
+const registerBtn = mustGet<HTMLButtonElement>("registerBtn");
+const guestBtn = mustGet<HTMLButtonElement>("guestBtn");
 const displayNameInput = mustGet<HTMLInputElement>("displayName");
 const statusF = mustGet<HTMLSpanElement>("status");
 const roomF = mustGet<HTMLSpanElement>("room");
@@ -68,6 +75,18 @@ startBtn.addEventListener("click", () => {
 
 reconnectBtn.addEventListener("click", () => {
   void reconnectStoredSession();
+});
+
+loginBtn.addEventListener("click", () => {
+  void authenticateWithPassword("login");
+});
+
+registerBtn.addEventListener("click", () => {
+  void authenticateWithPassword("register");
+});
+
+guestBtn.addEventListener("click", () => {
+  void authenticateAsGuest();
 });
 
 window.addEventListener("keydown", (event) => {
@@ -136,11 +155,11 @@ canvas.addEventListener("touchend", (event) => {
 
 let pingTimer: number | null = null;
 renderEmpty();
+restoreStoredAuth();
 
 async function connectAndQueue(): Promise<void> {
   setStatus("Authenticating");
-  const token = await requestDemoToken(displayNameInput.value);
-  saveSession({ token });
+  const token = await ensureToken();
   connectSocket(token);
   socket?.emit("joinMatchmaking");
 }
@@ -166,6 +185,78 @@ async function requestDemoToken(displayName: string): Promise<string> {
   }
   const body = (await response.json()) as { token: string };
   return body.token;
+}
+
+async function authenticateAsGuest(): Promise<string> {
+  setAuthMessage("Creating guest session...");
+  const token = await requestDemoToken(displayNameInput.value || authUsernameInput.value || "Guest");
+  saveSession({ token });
+  authCard.classList.add("is-authenticated");
+  setAuthMessage("Guest session ready.");
+  setStatus("Guest ready");
+  return token;
+}
+
+async function authenticateWithPassword(mode: "login" | "register"): Promise<void> {
+  const username = authUsernameInput.value;
+  const password = authPasswordInput.value;
+  const endpoint = mode === "login" ? "/auth/login" : "/auth/register";
+  setAuthMessage(mode === "login" ? "Logging in..." : "Creating account...");
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        username,
+        displayName: username,
+        password,
+      }),
+    });
+    const body = (await response.json()) as { token?: string; user?: { displayName: string }; message?: string };
+    if (!response.ok || !body.token) {
+      setAuthMessage(body.message ?? "Authentication failed.");
+      return;
+    }
+
+    saveSession({ token: body.token });
+    displayNameInput.value = body.user?.displayName ?? username;
+    authCard.classList.add("is-authenticated");
+    setAuthMessage("Signed in.");
+    setStatus("Signed in");
+  } catch {
+    setAuthMessage("Could not reach auth service. Use guest mode.");
+  }
+}
+
+async function ensureToken(): Promise<string> {
+  const session = loadSession();
+  if (session?.token) {
+    return session.token;
+  }
+  return authenticateAsGuest();
+}
+
+function restoreStoredAuth(): void {
+  const session = loadSession();
+  if (!session?.token) {
+    return;
+  }
+
+  authCard.classList.add("is-authenticated");
+  void fetch("/auth/me", {
+    headers: { authorization: `Bearer ${session.token}` },
+  })
+    .then((response) => (response.ok ? response.json() : null))
+    .then((body: { user?: { displayName?: string } } | null) => {
+      if (body?.user?.displayName) {
+        displayNameInput.value = body.user.displayName;
+        setStatus("Signed in");
+      }
+    })
+    .catch(() => {
+      authCard.classList.remove("is-authenticated");
+    });
 }
 
 function connectSocket(token: string): void {
@@ -490,6 +581,10 @@ function isInputAction(value: string | undefined): value is InputAction {
 
 function setStatus(value: string): void {
   statusF.textContent = value;
+}
+
+function setAuthMessage(value: string): void {
+  authMessage.textContent = value;
 }
 
 function saveSession(session: StoredSession): void {

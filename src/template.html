@@ -12,6 +12,20 @@
             <div class="status-pill"><span id="status">Offline</span></div>
         </header>
 
+        <section class="auth-card" id="authCard">
+            <div>
+                <h2>Sign in</h2>
+                <p id="authMessage">Use an account for future friends/history, or play as guest.</p>
+            </div>
+            <input id="authUsername" maxlength="24" autocomplete="username" placeholder="Username" />
+            <input id="authPassword" type="password" autocomplete="current-password" placeholder="Password" />
+            <div class="auth-actions">
+                <button type="button" id="loginBtn">Login</button>
+                <button type="button" id="registerBtn">Register</button>
+                <button type="button" id="guestBtn">Play as Guest</button>
+            </div>
+        </section>
+
         <div class="grid-layout">
             <aside class="left-panel">
                 <section class="panel" id="statsPanel">

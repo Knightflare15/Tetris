@@ -80,6 +80,42 @@ body {
   justify-content: center;
 }
 
+.auth-card {
+  display: grid;
+  grid-template-columns: 1fr 150px 150px auto;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 46%),
+    var(--panel);
+}
+
+.auth-card.is-authenticated {
+  display: none;
+}
+
+.auth-card h2 {
+  margin: 0 0 4px;
+  color: var(--butter);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+}
+
+.auth-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.auth-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .board-frame {
   padding: 14px;
   border: 1px solid rgba(242, 222, 138, 0.28);
@@ -258,6 +294,25 @@ button:disabled {
   .grid-layout {
     grid-template-columns: minmax(0, 1fr);
     gap: 8px;
+  }
+
+  .auth-card {
+    grid-template-columns: 1fr;
+    gap: 7px;
+    margin-bottom: 8px;
+    padding: 8px;
+  }
+
+  .auth-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .auth-actions button {
+    min-width: 0;
+    padding: 8px 6px;
+    font-size: 0.72rem;
   }
 
   .board-frame {

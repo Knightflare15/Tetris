@@ -55,6 +55,11 @@ Azure SQL Database
 
 Do not block tonight's deployment on the database. The current game can go online first.
 
+The login UI now supports both paths:
+
+- `Login` / `Register`: uses Azure SQL through Prisma when `DATABASE_URL` is configured and migrations are applied.
+- `Play as Guest`: uses demo JWT auth and works even before the database is ready.
+
 ## Official Azure Facts This Guide Relies On
 
 - App Service app settings are exposed to Node apps as environment variables.

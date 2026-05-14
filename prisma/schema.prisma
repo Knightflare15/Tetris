@@ -1,0 +1,133 @@
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  email        String?  @unique
+  displayName  String
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  lastLoginAt  DateTime?
+
+  refreshTokens     RefreshToken[]
+  sentRequests      FriendRequest[]   @relation("SentFriendRequests")
+  receivedRequests  FriendRequest[]   @relation("ReceivedFriendRequests")
+  friendshipsA      Friendship[]      @relation("FriendshipUserA")
+  friendshipsB      Friendship[]      @relation("FriendshipUserB")
+  matchPlayers      MatchPlayer[]
+  leaderboardScores LeaderboardScore[]
+  recentTeammates   RecentTeammate[]  @relation("RecentTeammateUser")
+  recentForUsers    RecentTeammate[]  @relation("RecentTeammateOther")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  tokenHash String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model FriendRequest {
+  id          String   @id @default(uuid())
+  senderId    String
+  receiverId  String
+  status      String   @default("pending")
+  createdAt   DateTime @default(now())
+  respondedAt DateTime?
+
+  sender   User @relation("SentFriendRequests", fields: [senderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  receiver User @relation("ReceivedFriendRequests", fields: [receiverId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([senderId, receiverId])
+  @@index([receiverId, status])
+}
+
+model Friendship {
+  id        String   @id @default(uuid())
+  userAId   String
+  userBId   String
+  createdAt DateTime @default(now())
+
+  userA User @relation("FriendshipUserA", fields: [userAId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  userB User @relation("FriendshipUserB", fields: [userBId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([userAId, userBId])
+  @@index([userBId])
+}
+
+model Match {
+  id        String    @id @default(uuid())
+  roomId    String    @unique
+  mode      String
+  status    String
+  score     Int       @default(0)
+  level     Int       @default(1)
+  lines     Int       @default(0)
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+
+  players           MatchPlayer[]
+  leaderboardScores LeaderboardScore[]
+}
+
+model MatchPlayer {
+  id                String @id @default(uuid())
+  slot              String
+  disconnectedCount Int    @default(0)
+  finalScore        Int    @default(0)
+  finalLevel        Int    @default(1)
+  finalLines        Int    @default(0)
+
+  userId  String
+  matchId String
+  user    User   @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  match   Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, userId])
+  @@index([userId])
+}
+
+model LeaderboardScore {
+  id        String   @id @default(uuid())
+  score     Int
+  level     Int
+  lines     Int
+  mode      String
+  createdAt DateTime @default(now())
+
+  userId  String
+  matchId String?
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  match   Match? @relation(fields: [matchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([mode, score])
+  @@index([userId])
+}
+
+model RecentTeammate {
+  id           String   @id @default(uuid())
+  matchCount   Int      @default(1)
+  lastPlayedAt DateTime @default(now())
+
+  userId     String
+  teammateId String
+  user       User @relation("RecentTeammateUser", fields: [userId], references: [id], onDelete: Cascade)
+  teammate   User @relation("RecentTeammateOther", fields: [teammateId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([userId, teammateId])
+  @@index([teammateId])
+}
