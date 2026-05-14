@@ -231,7 +231,7 @@ button:disabled {
   body {
     display: block;
     min-height: 100dvh;
-    padding: 10px;
+    padding: 8px;
     overflow-x: hidden;
   }
 
@@ -241,29 +241,36 @@ button:disabled {
 
   .app-header {
     align-items: center;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
   }
 
   .app-header h1 {
-    font-size: 2.2rem;
+    font-size: 1.7rem;
+  }
+
+  .status-pill {
+    min-width: 96px;
+    max-width: 160px;
+    padding: 6px 9px;
+    font-size: 0.78rem;
   }
 
   .grid-layout {
     grid-template-columns: minmax(0, 1fr);
-    gap: 10px;
+    gap: 8px;
   }
 
   .board-frame {
     order: 1;
     justify-self: center;
-    width: min(96vw, 340px);
-    padding: 8px;
+    width: min(72vw, 246px);
+    padding: 6px;
   }
 
   #tetris {
-    width: min(90vw, 300px);
-    height: min(66dvh, calc(min(90vw, 300px) * 2));
-    max-height: 600px;
+    width: min(68vw, 230px);
+    height: calc(min(68vw, 230px) * 2);
+    max-height: 46dvh;
     margin: 0 auto;
   }
 
@@ -275,52 +282,77 @@ button:disabled {
   }
 
   .left-panel {
-    order: 2;
+    order: 3;
   }
 
   .Outerpanel {
-    order: 3;
+    order: 2;
   }
 
   .panel {
     width: 100%;
-    padding: 10px;
+    padding: 8px;
   }
 
   .panel h2 {
-    margin-bottom: 8px;
+    margin-bottom: 5px;
+    font-size: 0.7rem;
   }
 
   .panel p {
-    margin: 5px 0;
+    margin: 3px 0;
+    font-size: 0.7rem;
+  }
+
+  .panel strong {
+    font-size: 0.76rem;
+  }
+
+  input {
+    margin-bottom: 5px;
+    padding: 7px 8px;
     font-size: 0.78rem;
+  }
+
+  .panel canvas {
+    margin-top: 5px;
+  }
+
+  #holdPreview {
+    height: 52px;
+  }
+
+  #preview {
+    height: 120px;
   }
 
   #previewPanel,
   .controls {
-    grid-column: 1 / -1;
+    grid-column: auto;
   }
 
   .controls {
     flex-direction: row;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
   }
 
   .controls button {
-    flex: 1 1 130px;
+    flex: 1 1 80px;
     min-width: 0;
+    padding: 8px 10px;
+    font-size: 0.78rem;
   }
 
   .mobile-controls {
     order: 4;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
+    gap: 6px;
     position: sticky;
-    bottom: 8px;
+    bottom: 6px;
     z-index: 4;
-    padding: 8px;
+    padding: 6px;
     border: 1px solid var(--line);
     border-radius: 8px;
     background: rgba(32, 30, 42, 0.92);
@@ -330,34 +362,119 @@ button:disabled {
 
   .mobile-controls button {
     min-width: 0;
-    min-height: 48px;
-    padding: 10px 8px;
-    font-size: 0.9rem;
+    min-height: 38px;
+    padding: 7px 6px;
+    font-size: 0.76rem;
     touch-action: manipulation;
     user-select: none;
   }
 }
 
 @media (max-width: 420px) {
+  .Outerpanel,
+  .left-panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .board-frame {
+    width: min(70vw, 226px);
+  }
+
+  #tetris {
+    width: min(66vw, 212px);
+    height: calc(min(66vw, 212px) * 2);
+  }
+
+  #statsPanel {
+    grid-column: 1 / 2;
+  }
+
+  .controls {
+    grid-column: 2 / 3;
+    align-content: start;
+  }
+
+  #connectionPanel,
+  #previewPanel {
+    grid-column: auto;
+  }
+
+  #preview {
+    height: 96px;
+  }
+
+  #holdPreview {
+    height: 44px;
+  }
+}
+
+@media (max-width: 380px), (max-height: 760px) {
+  body {
+    padding: 6px;
+  }
+
   .app-header {
-    flex-direction: column;
+    margin-bottom: 5px;
+  }
+
+  .app-header h1 {
+    font-size: 1.45rem;
   }
 
   .status-pill {
-    width: 100%;
+    padding: 5px 7px;
+    font-size: 0.68rem;
   }
 
-  .Outerpanel,
-  .left-panel {
-    grid-template-columns: 1fr;
+  .grid-layout {
+    gap: 6px;
   }
 
-  #connectionPanel {
-    order: -1;
+  .board-frame {
+    width: min(64vw, 204px);
+    padding: 5px;
   }
 
-  #previewPanel canvas {
-    height: 138px;
+  #tetris {
+    width: min(60vw, 192px);
+    height: calc(min(60vw, 192px) * 2);
+    max-height: 42dvh;
+  }
+
+  .panel {
+    padding: 6px;
+  }
+
+  .panel h2 {
+    font-size: 0.64rem;
+  }
+
+  .panel p {
+    font-size: 0.64rem;
+  }
+
+  .panel strong {
+    font-size: 0.68rem;
+  }
+
+  input {
+    padding: 6px 7px;
+    font-size: 0.7rem;
+  }
+
+  #preview {
+    height: 78px;
+  }
+
+  #holdPreview {
+    height: 38px;
+  }
+
+  .controls button,
+  .mobile-controls button {
+    min-height: 34px;
+    padding: 6px 5px;
+    font-size: 0.68rem;
   }
 }
 
