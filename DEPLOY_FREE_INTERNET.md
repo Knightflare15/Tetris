@@ -209,6 +209,7 @@ DATABASE_URL=<your Azure SQL connection string>
 ```
 
 If `DATABASE_URL` is not set, the app should still start and guest mode should still work.
+The build also works without `DATABASE_URL`; `prisma generate` uses a placeholder connection string and does not connect to the database.
 
 Generate `JWT_SECRET` locally:
 
@@ -420,6 +421,14 @@ Fixes:
 - missing `dist/server/index.js`: ensure `SCM_DO_BUILD_DURING_DEPLOYMENT=true`, redeploy, and confirm GitHub deploy ran `npm run build`;
 - Prisma client missing: ensure the latest `package.json` includes `build:azure` and `build` runs `prisma:generate`;
 - database URL issue: add a valid `DATABASE_URL`, or temporarily remove it and use Guest mode until SQL is ready.
+
+If GitHub Actions fails during `prisma generate` with:
+
+```text
+Missing required environment variable: DATABASE_URL
+```
+
+push the version of `prisma.config.ts` that includes the placeholder `databaseUrl`. You only need to add `DATABASE_URL` as a GitHub/Azure secret when running migrations or using real login/register.
 
 ### Page loads but matchmaking fails
 

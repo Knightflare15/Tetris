@@ -35,6 +35,14 @@ Prisma needs:
 DATABASE_URL="sqlserver://<server>.database.windows.net:1433;database=<db>;user=<user>;password=<password>;encrypt=true;trustServerCertificate=false"
 ```
 
+`prisma generate` does not need to connect to the database. The project's `prisma.config.ts` provides a harmless placeholder SQL Server URL when `DATABASE_URL` is missing so CI/Azure builds can still compile.
+
+Real database operations still need `DATABASE_URL`:
+
+- `npm run prisma:migrate`
+- `npm run prisma:deploy`
+- register/login endpoints at runtime
+
 For local SQL Server development you may use:
 
 ```text
