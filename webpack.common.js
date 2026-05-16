@@ -3,14 +3,14 @@ const path = require("path");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 
 module.exports = {
-  entry: "./src/client/index.ts",
+  entry: "./src/client/index.tsx",
   output: {
     filename: "main.js",
     path: path.resolve(__dirname, "dist/public"),
     clean: true,
   },
   resolve: {
-    extensions: [".ts", ".js"],
+    extensions: [".tsx", ".ts", ".js"],
   },
 
   plugins: [
@@ -21,7 +21,7 @@ module.exports = {
   module: {
     rules: [
       {
-        test: /\.ts$/i,
+        test: /\.tsx?$/i,
         use: "ts-loader",
         exclude: /node_modules/,
       },

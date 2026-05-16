@@ -1,37 +1,23 @@
-# `src/client/index.ts`
+# `src/client/index.tsx`
 
 ## What It Does
 
-This is the browser entry point for the multiplayer client. It connects to the server with Socket.IO, requests a demo JWT, joins matchmaking, sends input packets, receives authoritative snapshots, and renders the board, previews, hold piece, latency, and room status.
+This is the React entry point for the browser app. It imports global CSS, finds the `#root` element from `src/template.html`, and mounts `<App />`.
 
 ## Why It Exists
 
-The original browser code owned all gameplay state. This file replaces that model with a server-authoritative client: the browser only sends player intent and draws the latest server state.
+Webpack needs one browser entry file. Keeping this file tiny makes startup behavior obvious and keeps all product UI in `App.tsx`.
 
-## Place In The Bigger Picture
+## Runtime Flow
 
-This is the visual and input layer. It should never decide score, collision, pieces, line clears, or match results. Those belong to the shared engine running on the server.
+```text
+HTML loads -> main.js runs -> #root is found -> React mounts App
+```
 
-## Important Functions
+If `#root` is missing, the file throws a clear startup error.
 
-- `connectAndQueue()`: gets or reuses a JWT, opens a socket, and joins matchmaking.
-- `authenticateAsGuest()`: creates a guest JWT while keeping login/register visible.
-- `authenticateWithPassword(...)`: calls login/register and stores an account session.
-- `restoreStoredAuth()`: verifies saved auth before trusting local storage.
-- `reconnectStoredSession()`: uses local reconnect data to rejoin a room.
-- `connectSocket(token)`: creates the Socket.IO client and registers event handlers.
-- `sendInput(action)`: sends input packets with sequence numbers.
-- `renderSnapshot(snapshot)`: draws the authoritative room state.
-- `renderQueue(snapshot)`: draws the player's upcoming pieces.
-- `renderHold(snapshot)`: draws the shared hold piece.
-- `ghostPieceFor(...)`: computes a visual-only ghost position from the latest snapshot.
+## Related Files
 
-## Why This Design
-
-The browser stays thin on purpose. It handles UI, input, and rendering, while the server decides what actually happened. This is the safest model for multiplayer because client-side bugs or cheating cannot directly change the board.
-
-## Alternatives Considered
-
-- Client-authoritative gameplay: responsive, but insecure and desync-prone.
-- Full client prediction with rollback: complex and unnecessary for this cooperative Tetris.
-- REST input calls: too slow for realtime movement. WebSocket events are the right fit.
+- `src/template.html`: provides the root DOM node.
+- `src/client/App.tsx`: actual application UI.
+- `src/index.css`: Brix theme and responsive layout.

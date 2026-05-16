@@ -1,4 +1,4 @@
-# Cooperative Realtime Tetris
+# Brix
 
 This repository was refactored from a local single-player browser Tetris game into a production-style realtime cooperative multiplayer prototype.
 
@@ -95,7 +95,11 @@ All clients render same state
 - `src/server/socketGateway.ts`: websocket auth, input handling, reconnect, ping.
 - `src/server/matchmakingService.ts`: duplicate-safe 2-player queue.
 - `src/server/roomManager.ts`: room lifecycle, input buffering, fixed tick loop.
-- `src/client/index.ts`: browser auth, matchmaking, reconnect, input sending, snapshot rendering.
+- `src/client/index.tsx`: React browser entry point.
+- `src/client/App.tsx`: Brix themed UI shell, auth modal, panels, and mobile controls.
+- `src/client/useBrixGame.ts`: browser auth, matchmaking, reconnect, input sending, and socket state.
+- `src/client/gameRenderer.ts`: canvas board, hold, and queue rendering.
+- `src/client/wineTheme.ts`: seven wine fruit families mapped to tetromino groups.
 - `test/engine.test.ts`: deterministic hold and lock behavior tests.
 - `Dockerfile`: production container.
 - `deploy/azure.md`: Azure App Service deployment notes.
