@@ -3,7 +3,7 @@ export const COLS = 10;
 export const TICK_RATE = 20;
 export const TICK_MS = 1000 / TICK_RATE;
 export const QUEUE_PREVIEW = 3;
-export const LINES_PER_LEVEL = 3;
+export const LINES_PER_LEVEL = 4;
 export const BIAS_ROTATION_LEVELS = 6;
 
 export type PlayerSlot = "A" | "B";
