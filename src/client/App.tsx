@@ -82,6 +82,8 @@ export function App(): ReactElement {
         </section>
 
         <aside className="side-rail right-rail">
+          <PreviewCard title="Hold" type={holdType} />
+          <QueueCard queue={playerQueue} />
           <section className="cellar-card compact-card">
             <p className="eyebrow">Co-op</p>
             <label className="field-label" htmlFor="displayName">Player name</label>
@@ -96,9 +98,6 @@ export function App(): ReactElement {
             <StatRow label="Slot" value={game.localSlot ?? "-"} />
             <StatRow label="Latency" value={game.latencyMs === null ? "-" : `${game.latencyMs}ms`} />
           </section>
-
-          <PreviewCard title="Hold" type={holdType} />
-          <QueueCard queue={playerQueue} />
         </aside>
       </section>
 
@@ -344,7 +343,15 @@ function StatRow({ label, value }: { label: string; value: string }): ReactEleme
 function DecorativeScene(): ReactElement {
   return (
     <div className="decorative-scene" aria-hidden="true">
-      
+      <div className="wine-bottle" />
+      <div className="table-glass" />
+      <div className="grape-crate">
+        <span />
+        <span />
+        <span />
+        <span />
+        <span />
+      </div>
     </div>
   );
 }
