@@ -21,7 +21,12 @@
 * {
   box-sizing: border-box;
 }
-
+.board-column,
+.side-rail,
+.preview-card,
+.cellar-card {
+  min-width: 0;
+}
 html,
 body,
 #root {
@@ -162,17 +167,20 @@ canvas {
 
 .brix-layout {
   display: grid;
-  grid-template-columns: 220px minmax(330px, 392px) 220px;
+  grid-template-columns:
+    minmax(70px, 0.8fr)
+    minmax(180px, 1.5fr)
+    minmax(70px, 0.8fr);
+
   align-items: start;
-  justify-content: center;
-  gap: 16px;
+  gap: clamp(4px, 2vw, 16px);
 }
 
 .side-rail {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding-top: 62px;
+  padding-top: 42px;
 }
 
 .cellar-card {
@@ -271,6 +279,8 @@ canvas {
 }
 
 .board-frame {
+  width: min(100%, 340px);
+  min-width: 0;
   position: relative;
   padding: 16px;
   border: 10px solid var(--wood);
@@ -291,11 +301,13 @@ canvas {
 }
 
 .board-frame canvas {
-  width: 300px;
-  height: 600px;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 2;
   border-radius: 4px;
   background: #f8d19d;
   box-shadow: inset 0 0 30px rgba(120, 61, 28, 0.24);
+  touch-action: none;
 }
 
 .match-actions {
@@ -323,8 +335,10 @@ canvas {
 }
 
 .preview-card canvas {
-  width: 150px;
-  height: 250px;
+   width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 5;
+  max-width: 120px;
   margin: 0 auto 6px;
   border: 1px solid rgba(107, 59, 31, 0.18);
   border-radius: 7px;
@@ -530,57 +544,7 @@ canvas {
 }
 
 @media (max-width: 960px) {
-  .brix-app {
-    width: min(100% - 18px, 720px);
-    padding: 10px 0 86px;
-  }
-
-    .brix-layout {
-    grid-template-columns: minmax(0, 1fr) 140px;
-    align-items: start;
-    gap: 10px;
-  }
-  .board-frame {
-  width: min(64vw, 260px);
-  }
-  .board-column {
-    order: 1;
-  }
-
-  .right-rail {
-    order: 2;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding-top: 28px;
-  }
-
-  .left-rail {
-    order: 3;
-    grid-column: 1 / -1;
-  }
-
-
-  .side-rail {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-    padding-top: 0;
-  }
-
-  .left-rail {
-    order: 2;
-  }
-
-  .board-column {
-    order: 1;
-  }
-
-  .right-rail {
-    order: 3;
-    grid-template-columns: 1.15fr 0.85fr 0.85fr;
-  }
-
+  
   .fruit-strip {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     margin-bottom: 10px;
@@ -678,14 +642,13 @@ canvas {
   }
 
   .board-frame {
-    width: min(76vw, 292px);
     padding: 7px;
     border-width: 7px;
   }
 
   .board-frame canvas {
     width: 100%;
-    height: auto;
+    height: max(100%);
     aspect-ratio: 1 / 2;
     max-height: 52dvh;
   }
@@ -702,10 +665,7 @@ canvas {
     font-size: 0.82rem;
   }
 
-  .side-rail,
-  .right-rail {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+  
 
   .compact-card {
     grid-column: 1 / -1;
@@ -809,9 +769,7 @@ canvas {
 }
 
 @media (max-width: 390px), (max-height: 760px) {
-  .board-frame {
-    width: min(70vw, 246px);
-  }
+ 
 
   .cellar-card {
     padding: 7px;

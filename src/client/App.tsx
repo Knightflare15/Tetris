@@ -70,7 +70,7 @@ export function App(): ReactElement {
             <strong>Brix</strong>
             <span />
           </div>
-          <BoardCanvas snapshot={game.snapshot} localSlot={game.localSlot} />
+          <BoardCanvas snapshot={game.snapshot} localSlot={game.localSlot} onInput = {game.sendInput}/>
           <div className="match-actions">
             <button type="button" onClick={() => void game.connectAndQueue()}>
               Find Match
@@ -129,11 +129,19 @@ export function App(): ReactElement {
   );
 }
 
-function BoardCanvas({ snapshot, localSlot }: {
+function BoardCanvas({ snapshot, localSlot, onInput }: {
   snapshot: RoomSnapshot | null;
   localSlot: "A" | "B" | null;
+  onInput: (action: InputAction) => void
 }): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const touchRef = useRef<{
+    startX: number;
+    lastStep: number;
+  } | null>(null);
+
+  const STEP_SIZE = 22;
 
   useEffect(() => {
     if (canvasRef.current) {
@@ -141,12 +149,57 @@ function BoardCanvas({ snapshot, localSlot }: {
     }
   }, [localSlot, snapshot]);
 
+  function handleTouchStart(e: React.TouchEvent<HTMLCanvasElement>){
+  const touch = e.touches[0];
+
+  touchRef.current = {
+    startX: touch.clientX,
+    lastStep: 0,
+  };
+}
+
+function handleTouchMove(e: React.TouchEvent<HTMLCanvasElement>){
+  if (!touchRef.current) return;
+
+  e.preventDefault();
+
+  const touch = e.touches[0];
+
+  const deltaX = touch.clientX - touchRef.current.startX;
+
+  const currentStep = Math.trunc(deltaX / STEP_SIZE);
+
+  const difference = currentStep - touchRef.current.lastStep;
+
+  if (difference > 0){
+    for (let i = 0; i < difference ; i++){
+      onInput("moveRight");
+    }
+  }
+
+  if (difference < 0){
+    for (let i = 0; i < Math.abs(difference) ; i++){
+      onInput("moveLeft");
+    }
+  }
+  touchRef.current.lastStep = currentStep;
+}
+
+function handleTouchEnd(){
+  touchRef.current = null;
+}
+
+
   return (
     <section className="board-frame" aria-label="Brix board">
-      <canvas ref={canvasRef} width={300} height={600} />
+      <canvas ref={canvasRef} width={300} height={600} 
+      onTouchStart={handleTouchStart}
+      onTouchMove = {handleTouchMove}
+      onTouchEnd={handleTouchEnd} />
     </section>
   );
 }
+
 
 function QueueCard({ queue }: { queue: TetrominoType[] }): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);

@@ -71,7 +71,7 @@ export function renderPreview(
   const context = getCanvasContext(canvas);
   context.clearRect(0, 0, canvas.width, canvas.height);
   types.slice(0, 3).forEach((type, index) => {
-    drawPreviewPiece(context, type, 18, 8 + index * 46);
+    drawPreviewPiece(context, type, 45, 8 + index * 100);
   });
 }
 
