@@ -150,11 +150,11 @@ function drawBoardCell(
   context.lineWidth = 1.4;
   context.stroke();
 
-  context.fillStyle = "rgba(255, 248, 225, 0.78)";
-  context.font = "bold 12px Georgia, serif";
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.fillText(family.shortName.slice(0, 1), left + size / 2, top + size / 2 + 1);
+  // context.fillStyle = "rgba(255, 248, 225, 0.78)";
+  // context.font = "bold 12px Georgia, serif";
+  // context.textAlign = "center";
+  // context.textBaseline = "middle";
+  // context.fillText(family.shortName.slice(0, 1), left + size / 2, top + size / 2 + 1);
   context.restore();
 }
 

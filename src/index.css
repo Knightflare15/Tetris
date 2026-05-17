@@ -529,82 +529,6 @@ canvas {
   pointer-events: none;
 }
 
-.wine-bottle {
-  position: absolute;
-  left: max(18px, calc(50% - 560px));
-  bottom: 28px;
-  width: 58px;
-  height: 188px;
-  border-radius: 18px 18px 8px 8px;
-  background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.24), transparent 32%),
-    linear-gradient(180deg, #691b1f 0 18%, #2c4a24 18% 100%);
-  box-shadow: 0 18px 36px rgba(63, 29, 16, 0.24);
-}
-
-.wine-bottle::before {
-  position: absolute;
-  left: 17px;
-  top: -52px;
-  width: 24px;
-  height: 58px;
-  border-radius: 10px 10px 0 0;
-  background: #2c4a24;
-  content: "";
-}
-
-.wine-bottle::after {
-  position: absolute;
-  left: 9px;
-  right: 9px;
-  bottom: 42px;
-  height: 54px;
-  border-radius: 4px;
-  background: #fff0cc;
-  content: "Brix";
-  display: grid;
-  place-items: center;
-  color: var(--wine-deep);
-  font-family: Georgia, "Times New Roman", serif;
-  font-weight: 900;
-}
-
-.table-glass {
-  position: absolute;
-  left: max(90px, calc(50% - 490px));
-  bottom: 32px;
-  width: 48px;
-  height: 96px;
-  border: 2px solid rgba(92, 46, 30, 0.26);
-  border-radius: 11px 11px 26px 26px;
-  background: linear-gradient(180deg, transparent 30%, rgba(159, 22, 52, 0.72) 31% 72%, transparent 73%);
-}
-
-.grape-crate {
-  position: absolute;
-  right: max(16px, calc(50% - 560px));
-  bottom: 32px;
-  width: 116px;
-  height: 76px;
-  border: 3px solid #8d4f24;
-  border-radius: 6px;
-  background: linear-gradient(180deg, #c27a35, #9b5728);
-}
-
-.grape-crate span {
-  position: absolute;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: #8d2556;
-}
-
-.grape-crate span:nth-child(1) { left: 18px; top: -18px; }
-.grape-crate span:nth-child(2) { left: 40px; top: -28px; background: #b5a73a; }
-.grape-crate span:nth-child(3) { left: 62px; top: -18px; }
-.grape-crate span:nth-child(4) { left: 30px; top: 4px; background: #b5a73a; }
-.grape-crate span:nth-child(5) { left: 54px; top: 4px; }
-
 @media (max-width: 960px) {
   .brix-app {
     width: min(100% - 18px, 720px);
@@ -818,7 +742,7 @@ canvas {
   }
 
   .glass-base {
-    width: 48px;
+    width: 22px;
   }
 
   .wine-progress span {

@@ -26,7 +26,7 @@ export function App(): ReactElement {
 
       <header className="brix-topbar">
         <div className="brand-lockup" aria-label="Brix">
-          <span className="brand-vine">vintage arcade</span>
+          <span className="brand-vine">est 2026</span>
           <h1>Brix</h1>
         </div>
         <div className="topbar-actions">
@@ -344,15 +344,7 @@ function StatRow({ label, value }: { label: string; value: string }): ReactEleme
 function DecorativeScene(): ReactElement {
   return (
     <div className="decorative-scene" aria-hidden="true">
-      <div className="wine-bottle" />
-      <div className="table-glass" />
-      <div className="grape-crate">
-        <span />
-        <span />
-        <span />
-        <span />
-        <span />
-      </div>
+      
     </div>
   );
 }
