@@ -129,123 +129,156 @@ export function App(): ReactElement {
   );
 }
 
-function BoardCanvas({ snapshot, localSlot, onInput }: {
+function BoardCanvas({
+  snapshot,
+  localSlot,
+  onInput,
+}: {
   snapshot: RoomSnapshot | null;
   localSlot: "A" | "B" | null;
-  onInput: (action: InputAction) => void
+  onInput: (action: InputAction) => void;
 }): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
- const touchRef = useRef<{
-  startX: number;
-  startY: number;
-  lastStep: number;
-  startTime: number;
-  moved: boolean;
-} | null>(null);
+  const touchRef = useRef<{
+    startX: number;
+    startY: number;
+    lastStep: number;
+    startTime: number;
+    moved: boolean;
+  } | null>(null);
 
-const STEP_SIZE = 22;
-const TAP_DISTANCE = 12;
-const HARD_DROP_VELOCITY = 0.9;
+  const STEP_SIZE = 22;
+  const TAP_DISTANCE = 12;
+  const HARD_DROP_VELOCITY = 0.9;
 
-function handleTouchStart(e: React.TouchEvent<HTMLCanvasElement>) {
-  const touch = e.touches[0];
+  useEffect(() => {
+    if (canvasRef.current) {
+      renderBoard(canvasRef.current, snapshot, localSlot);
+    }
+  }, [localSlot, snapshot]);
 
-  touchRef.current = {
-    startX: touch.clientX,
-    startY: touch.clientY,
-    lastStep: 0,
-    startTime: performance.now(),
-    moved: false,
-  };
-}
+  function handleTouchStart(
+    e: React.TouchEvent<HTMLCanvasElement>,
+  ) {
+    const touch = e.touches[0];
 
-function handleTouchMove(e: React.TouchEvent<HTMLCanvasElement>) {
-  if (!touchRef.current) return;
+    touchRef.current = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      lastStep: 0,
+      startTime: performance.now(),
+      moved: false,
+    };
+  }
 
-  e.preventDefault();
+  function handleTouchMove(
+    e: React.TouchEvent<HTMLCanvasElement>,
+  ) {
+    if (!touchRef.current) return;
 
-  const touch = e.touches[0];
+    e.preventDefault();
 
-  const deltaX = touch.clientX - touchRef.current.startX;
-  const deltaY = touch.clientY - touchRef.current.startY;
+    const touch = e.touches[0];
 
-  // HORIZONTAL MOVEMENT
+    const deltaX =
+      touch.clientX - touchRef.current.startX;
 
-  const currentStep = Math.trunc(deltaX / STEP_SIZE);
+    const deltaY =
+      touch.clientY - touchRef.current.startY;
 
-  const difference = currentStep - touchRef.current.lastStep;
+    // LEFT / RIGHT
 
-  if (difference > 0) {
-    for (let i = 0; i < difference; i++) {
-      onInput("moveRight");
+    const currentStep = Math.trunc(
+      deltaX / STEP_SIZE,
+    );
+
+    const difference =
+      currentStep - touchRef.current.lastStep;
+
+    if (difference > 0) {
+      for (let i = 0; i < difference; i++) {
+        onInput("moveRight");
+      }
+
+      touchRef.current.moved = true;
     }
 
-    touchRef.current.moved = true;
-  }
+    if (difference < 0) {
+      for (let i = 0; i < Math.abs(difference); i++) {
+        onInput("moveLeft");
+      }
 
-  if (difference < 0) {
-    for (let i = 0; i < Math.abs(difference); i++) {
-      onInput("moveLeft");
+      touchRef.current.moved = true;
     }
 
-    touchRef.current.moved = true;
+    touchRef.current.lastStep = currentStep;
+
+    // SOFT DROP
+
+    if (deltaY > 28) {
+      onInput("softDrop");
+
+      touchRef.current.startY = touch.clientY;
+      touchRef.current.moved = true;
+    }
   }
 
-  touchRef.current.lastStep = currentStep;
-
-  // SOFT DROP
-
-  if (deltaY > 28) {
-    onInput("softDrop");
-
-    touchRef.current.startY = touch.clientY;
-    touchRef.current.moved = true;
-  }
-}
-
-function handleTouchEnd(e: React.TouchEvent<HTMLCanvasElement>) {
-  if (!touchRef.current) return;
-
-  const touch = e.changedTouches[0];
-
-  const deltaX = touch.clientX - touchRef.current.startX;
-  const deltaY = touch.clientY - touchRef.current.startY;
-
-  const distance = Math.hypot(deltaX, deltaY);
-
-  const elapsed =
-    performance.now() - touchRef.current.startTime;
-
-  const velocityY = deltaY / elapsed;
-
-  // TAP = ROTATE
-
-  if (
-    distance < TAP_DISTANCE &&
-    !touchRef.current.moved
+  function handleTouchEnd(
+    e: React.TouchEvent<HTMLCanvasElement>,
   ) {
-    onInput("rotateCW");
+    if (!touchRef.current) return;
+
+    const touch = e.changedTouches[0];
+
+    const deltaX =
+      touch.clientX - touchRef.current.startX;
+
+    const deltaY =
+      touch.clientY - touchRef.current.startY;
+
+    const distance = Math.hypot(deltaX, deltaY);
+
+    const elapsed =
+      performance.now() -
+      touchRef.current.startTime;
+
+    const velocityY = deltaY / elapsed;
+
+    // TAP = ROTATE
+
+    if (
+      distance < TAP_DISTANCE &&
+      !touchRef.current.moved
+    ) {
+      onInput("rotateCW");
+    }
+
+    // FAST DOWN SWIPE = HARD DROP
+
+    else if (
+      deltaY > 80 &&
+      velocityY > HARD_DROP_VELOCITY
+    ) {
+      onInput("hardDrop");
+    }
+
+    touchRef.current = null;
   }
-
-  // FAST DOWN SWIPE = HARD DROP
-
-  else if (
-    deltaY > 80 &&
-    velocityY > HARD_DROP_VELOCITY
-  ) {
-    onInput("hardDrop");
-  }
-
-  touchRef.current = null;
-}
 
   return (
-    <section className="board-frame" aria-label="Brix board">
-      <canvas ref={canvasRef} width={300} height={600} 
-      onTouchStart={handleTouchStart}
-      onTouchMove = {handleTouchMove}
-      onTouchEnd={handleTouchEnd} />
+    <section
+      className="board-frame"
+      aria-label="Brix board"
+    >
+      <canvas
+        ref={canvasRef}
+        width={300}
+        height={600}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      />
     </section>
   );
 }
