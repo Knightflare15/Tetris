@@ -107,12 +107,13 @@ function drawCellarGrid(
   rows: number,
 ): void {
   const gradient = context.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, "#563505");
-  gradient.addColorStop(1, "#351f04");
+  gradient.addColorStop(0, "#321b32");
+  gradient.addColorStop(0.58, "#24142b");
+  gradient.addColorStop(1, "#140b1b");
   context.fillStyle = gradient;
   context.fillRect(0, 0, width, height);
 
-  context.strokeStyle = "rgba(122, 71, 31, 0.2)";
+  context.strokeStyle = "rgba(255, 207, 132, 0.11)";
   context.lineWidth = 1;
   for (let x = 0; x <= cols; x++) {
     context.beginPath();
@@ -127,7 +128,7 @@ function drawCellarGrid(
     context.stroke();
   }
 
-  context.strokeStyle = "rgba(111, 55, 38, 0.32)";
+  context.strokeStyle = "rgba(79, 182, 168, 0.28)";
   context.setLineDash([2, 8]);
   context.beginPath();
   context.moveTo((cols * BOARD_BLOCK_SIZE) / 2, 16);
