@@ -9,8 +9,10 @@ This folder contains the backend for Brix.
 - Express startup and static file serving.
 - Socket.IO authentication and input handling.
 - JWT issuing and validation.
-- Optional Prisma-backed login/register endpoints.
+- Prisma-backed login/register endpoints and social data access.
+- OTP-based registration and forgot-password flows.
 - Matchmaking and room lifecycle.
+- Friend presence, friend requests, leaderboard, and friend-join flow.
 - Authoritative fixed-tick game simulation.
 - Practice bot planning.
 - Structured logging.
