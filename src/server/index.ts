@@ -12,6 +12,7 @@ import { RoomManager } from "./roomManager";
 import { registerSocketGateway } from "./socketGateway";
 import { getPrisma, isDatabaseConfigured } from "./database";
 import { hashPassword, verifyPassword } from "./passwordService";
+import { SocialError, SocialService } from "./socialService";
 
 const config = loadConfig();
 const authService = new AuthService(config.jwtSecret);
@@ -23,6 +24,7 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(server, {
     credentials: true,
   },
 });
+let socialService: SocialService;
 
 app.use(cors({ origin: config.nodeEnv === "production" ? false : config.clientOrigin }));
 app.use(express.json());
@@ -121,6 +123,62 @@ app.get("/auth/me", (req, res) => {
   }
 });
 
+app.get("/social/summary", async (req, res) => {
+  const user = requireAuth(req.headers.authorization, res);
+  if (!user) {
+    return;
+  }
+
+  try {
+    res.json(await socialService.summary(user.userId));
+  } catch (error) {
+    handleSocialError(res, error, "social summary failed");
+  }
+});
+
+app.post("/friends/request", async (req, res) => {
+  const user = requireAuth(req.headers.authorization, res);
+  if (!user) {
+    return;
+  }
+
+  try {
+    const username = typeof req.body?.username === "string" ? req.body.username : "";
+    await socialService.sendFriendRequest(user.userId, username);
+    res.status(204).end();
+  } catch (error) {
+    handleSocialError(res, error, "friend request failed");
+  }
+});
+
+app.post("/friends/requests/:id/accept", async (req, res) => {
+  const user = requireAuth(req.headers.authorization, res);
+  if (!user) {
+    return;
+  }
+
+  try {
+    await socialService.acceptFriendRequest(user.userId, req.params.id);
+    res.status(204).end();
+  } catch (error) {
+    handleSocialError(res, error, "friend accept failed");
+  }
+});
+
+app.post("/friends/requests/:id/decline", async (req, res) => {
+  const user = requireAuth(req.headers.authorization, res);
+  if (!user) {
+    return;
+  }
+
+  try {
+    await socialService.declineFriendRequest(user.userId, req.params.id);
+    res.status(204).end();
+  } catch (error) {
+    handleSocialError(res, error, "friend decline failed");
+  }
+});
+
 const publicDir = path.resolve(process.cwd(), "dist/public");
 app.use("/sounds", express.static(path.resolve(process.cwd(), "sounds")));
 app.use(express.static(publicDir));
@@ -128,9 +186,12 @@ app.get("*", (_req, res) => {
   res.sendFile(path.join(publicDir, "index.html"));
 });
 
-const roomManager = new RoomManager(io, config.disconnectGraceMs);
+const roomManager = new RoomManager(io, config.disconnectGraceMs, (roomId, playerIds, score, level, lines, mode) => {
+  void socialService.recordMatch(roomId, playerIds, score, level, lines, mode);
+});
+socialService = new SocialService(io, roomManager);
 const matchmaking = new MatchmakingService(io, roomManager);
-registerSocketGateway(io, authService, roomManager, matchmaking);
+registerSocketGateway(io, authService, roomManager, matchmaking, socialService);
 
 server.listen(config.port, () => {
   logger.info({ port: config.port, env: config.nodeEnv }, "coop tetris server listening");
@@ -168,6 +229,30 @@ function authHeaderToken(value: string | undefined): string | null {
     return null;
   }
   return value.slice("Bearer ".length);
+}
+
+function requireAuth(authorization: string | undefined, res: express.Response): { userId: string; displayName: string } | null {
+  const token = authHeaderToken(authorization);
+  if (!token) {
+    res.status(401).json({ message: "Missing bearer token." });
+    return null;
+  }
+
+  try {
+    return authService.verifyToken(token);
+  } catch {
+    res.status(401).json({ message: "Invalid token." });
+    return null;
+  }
+}
+
+function handleSocialError(res: express.Response, error: unknown, logMessage: string): void {
+  if (error instanceof SocialError) {
+    res.status(error.status).json({ message: error.message });
+    return;
+  }
+  logger.error({ error }, logMessage);
+  res.status(500).json({ message: "Social request failed." });
 }
 
 function hasPrismaCode(error: unknown, code: string): boolean {

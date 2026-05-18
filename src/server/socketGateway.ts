@@ -4,6 +4,7 @@ import { AuthService } from "./authService";
 import { logger } from "./logger";
 import { MatchmakingService } from "./matchmakingService";
 import { RoomManager } from "./roomManager";
+import { SocialService } from "./socialService";
 
 type GameServer = Server<ClientToServerEvents, ServerToClientEvents>;
 type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents> & { data: { user?: AuthUser } };
@@ -13,6 +14,7 @@ export function registerSocketGateway(
   authService: AuthService,
   roomManager: RoomManager,
   matchmaking: MatchmakingService,
+  socialService: SocialService,
 ): void {
   io.use((socket: GameSocket, next) => {
     try {
@@ -36,6 +38,7 @@ export function registerSocketGateway(
     }
 
     logger.info({ socketId: socket.id, userId: user.userId }, "socket connected");
+    socialService.addOnline(socket, user);
     socket.emit("authenticated", { user });
 
     socket.on("joinMatchmaking", () => {
@@ -63,6 +66,18 @@ export function registerSocketGateway(
       if (snapshot) {
         socket.emit("snapshot", snapshot);
       }
+    });
+
+    socket.on("joinFriend", ({ friendId }) => {
+      if (typeof friendId !== "string" || !friendId) {
+        socket.emit("serverError", { message: "Choose a friend to join." });
+        return;
+      }
+      matchmaking.remove(socket.id);
+      void socialService.joinFriend(socket, user, friendId).catch((error) => {
+        logger.error({ error, userId: user.userId, friendId }, "friend join failed");
+        socket.emit("serverError", { message: "Could not start a friend game." });
+      });
     });
 
     socket.on("reconnectRoom", ({ roomId, reconnectToken }) => {
@@ -96,6 +111,7 @@ export function registerSocketGateway(
     socket.on("disconnect", (reason) => {
       matchmaking.remove(socket.id);
       roomManager.markDisconnected(socket.id);
+      socialService.removeOnline(socket.id, user.userId);
       logger.info({ socketId: socket.id, userId: user.userId, reason }, "socket disconnected");
     });
   });

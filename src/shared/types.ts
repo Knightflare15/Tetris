@@ -125,11 +125,46 @@ export interface AuthUser {
   displayName: string;
 }
 
+export interface FriendSummary {
+  userId: string;
+  username: string;
+  displayName: string;
+  online: boolean;
+  inGame: boolean;
+}
+
+export interface FriendRequestSummary {
+  id: string;
+  userId: string;
+  username: string;
+  displayName: string;
+  createdAt: string;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  userId: string;
+  displayName: string;
+  score: number;
+  level: number;
+  lines: number;
+  mode: string;
+  createdAt: string;
+}
+
+export interface SocialSummary {
+  friends: FriendSummary[];
+  incomingRequests: FriendRequestSummary[];
+  outgoingRequests: FriendRequestSummary[];
+  leaderboard: LeaderboardEntry[];
+}
+
 export interface ServerToClientEvents {
   authenticated: (payload: { user: AuthUser }) => void;
   matchmakingQueued: (payload: { queueSize: number }) => void;
   roomJoined: (payload: { roomId: string; slot: PlayerSlot; reconnectToken: string }) => void;
   snapshot: (snapshot: RoomSnapshot) => void;
+  socialUpdated: () => void;
   latency: (payload: { latencyMs: number; serverTime: number }) => void;
   serverError: (payload: { message: string }) => void;
 }
@@ -138,6 +173,7 @@ export interface ClientToServerEvents {
   authenticate: (payload: { token?: string; displayName?: string }) => void;
   joinMatchmaking: () => void;
   joinPractice: (payload: { botSpeed: PracticeBotSpeed }) => void;
+  joinFriend: (payload: { friendId: string }) => void;
   reconnectRoom: (payload: { roomId: string; reconnectToken: string }) => void;
   input: (input: ClientInput) => void;
   pingCheck: (payload: { clientTime: number }) => void;

@@ -295,6 +295,124 @@ canvas {
   gap: clamp(5px, 0.9vw, 9px);
 }
 
+.card-heading-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.mini-button {
+  min-width: 0;
+  padding: 6px 8px;
+  font-size: clamp(0.56rem, 1.2vw, 0.72rem);
+}
+
+.friend-form {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  margin-bottom: 7px;
+}
+
+.social-card input {
+  min-width: 0;
+  padding: 7px 8px;
+  font-size: var(--small-copy);
+}
+
+.social-message,
+.empty-note {
+  margin-bottom: 7px !important;
+  font-size: var(--small-copy) !important;
+}
+
+.request-list,
+.friend-list,
+.leaderboard-list {
+  position: relative;
+  display: grid;
+  gap: 6px;
+}
+
+.request-list,
+.friend-list {
+  margin-bottom: 10px;
+}
+
+.request-row,
+.friend-row,
+.leader-row {
+  display: grid;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px;
+  border: 1px solid rgba(188, 154, 119, 0.22);
+  border-radius: 7px;
+  background: rgba(255, 250, 243, 0.56);
+}
+
+.request-row {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.request-row span {
+  min-width: 0;
+  overflow: hidden;
+  color: #713246;
+  font-size: var(--small-copy);
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friend-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.friend-row strong,
+.leader-row strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: #713246;
+  font-size: var(--small-copy);
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friend-row span:not(.presence-dot),
+.leader-row span {
+  color: var(--muted);
+  font-size: clamp(0.5rem, 1.1vw, 0.66rem);
+  font-weight: 800;
+}
+
+.presence-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #c4aa93;
+  box-shadow: 0 0 0 3px rgba(196, 170, 147, 0.16);
+}
+
+.presence-dot.is-online {
+  background: #62a66f;
+  box-shadow: 0 0 0 3px rgba(98, 166, 111, 0.18);
+}
+
+.leaderboard-list {
+  padding-top: 2px;
+}
+
+.leader-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
 .secondary-button,
 .ghost-button {
   color: #6d3a4d;

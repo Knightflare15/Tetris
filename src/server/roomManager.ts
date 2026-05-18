@@ -36,6 +36,14 @@ export class RoomManager {
   constructor(
     private readonly io: Server,
     private readonly disconnectGraceMs: number,
+    private readonly onMatchEnded?: (
+      roomId: string,
+      playerIds: string[],
+      score: number,
+      level: number,
+      lines: number,
+      mode: string,
+    ) => void,
   ) {}
 
   createRoom(playerA: AuthUser, socketA: string, playerB: AuthUser, socketB: string): RoomState {
@@ -207,6 +215,16 @@ export class RoomManager {
     if (room.state.status === "ended") {
       logger.info({ roomId }, "room ended");
       clearInterval(room.interval);
+      this.onMatchEnded?.(
+        roomId,
+        (["A", "B"] as PlayerSlot[])
+          .map((slot) => room.state.players[slot]?.userId)
+          .filter((userId): userId is string => Boolean(userId)),
+        room.state.score,
+        room.state.level,
+        room.state.lines,
+        room.bot ? "practice" : "coop",
+      );
       setTimeout(() => this.destroyRoom(roomId), 5000);
     }
   }

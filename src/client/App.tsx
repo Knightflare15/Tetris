@@ -3,6 +3,7 @@ import {
   LINES_PER_LEVEL,
   type InputAction,
   type LineClearEffect,
+  type SocialSummary,
   type PracticeBotSpeed,
   type RoomSnapshot,
   type TetrominoType,
@@ -88,6 +89,17 @@ export function App(): ReactElement {
               )}
             </div>
           </section>
+
+          <SocialHub
+            social={game.social}
+            message={game.socialMessage}
+            accountReady={game.authMode === "account"}
+            onAddFriend={game.addFriend}
+            onAccept={game.acceptFriendRequest}
+            onDecline={game.declineFriendRequest}
+            onJoinFriend={game.joinFriend}
+            onRefresh={game.refreshSocial}
+          />
 
           <section className="cellar-card match-card">
             <p className="eyebrow">Current match</p>
@@ -438,6 +450,113 @@ function PreviewCard({ title, type }: { title: string; type: TetrominoType | nul
       <p className="eyebrow">{title}</p>
       <canvas ref={canvasRef} width={150} height={90} />
       <strong>{family?.name ?? "Empty"}</strong>
+    </section>
+  );
+}
+
+function SocialHub({
+  social,
+  message,
+  accountReady,
+  onAddFriend,
+  onAccept,
+  onDecline,
+  onJoinFriend,
+  onRefresh,
+}: {
+  social: SocialSummary | null;
+  message: string;
+  accountReady: boolean;
+  onAddFriend: (username: string) => Promise<void>;
+  onAccept: (requestId: string) => Promise<void>;
+  onDecline: (requestId: string) => Promise<void>;
+  onJoinFriend: (friendId: string) => Promise<void>;
+  onRefresh: () => Promise<void>;
+}): ReactElement {
+  const [friendName, setFriendName] = useState("");
+  const friends = social?.friends ?? [];
+  const incoming = social?.incomingRequests ?? [];
+  const leaders = social?.leaderboard ?? [];
+
+  return (
+    <section className="cellar-card social-card">
+      <div className="card-heading-row">
+        <p className="eyebrow">Friends</p>
+        <button className="mini-button" type="button" onClick={() => void onRefresh()} disabled={!accountReady}>
+          Refresh
+        </button>
+      </div>
+      <form
+        className="friend-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!friendName.trim()) {
+            return;
+          }
+          void onAddFriend(friendName).then(() => setFriendName(""));
+        }}
+      >
+        <input
+          value={friendName}
+          disabled={!accountReady}
+          onChange={(event) => setFriendName(event.target.value)}
+          placeholder="Username"
+          maxLength={24}
+        />
+        <button className="mini-button" type="submit" disabled={!accountReady || !friendName.trim()}>
+          Add
+        </button>
+      </form>
+      <p className="social-message">{message}</p>
+
+      {incoming.length > 0 && (
+        <div className="request-list">
+          {incoming.map((request) => (
+            <div className="request-row" key={request.id}>
+              <span>{request.displayName}</span>
+              <button className="mini-button" type="button" onClick={() => void onAccept(request.id)}>
+                Accept
+              </button>
+              <button className="mini-button secondary-button" type="button" onClick={() => void onDecline(request.id)}>
+                No
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="friend-list">
+        {friends.length === 0 && <p className="empty-note">No friends yet.</p>}
+        {friends.map((friend) => (
+          <div className="friend-row" key={friend.userId}>
+            <span className={`presence-dot ${friend.online ? "is-online" : ""}`} />
+            <div>
+              <strong>{friend.displayName}</strong>
+              <span>{friend.online ? (friend.inGame ? "In game" : "Online") : "Offline"}</span>
+            </div>
+            <button
+              className="mini-button"
+              type="button"
+              disabled={!friend.online || friend.inGame}
+              onClick={() => void onJoinFriend(friend.userId)}
+            >
+              Join
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div className="leaderboard-list">
+        <p className="eyebrow">Global board</p>
+        {leaders.length === 0 && <p className="empty-note">Finish an account match to place.</p>}
+        {leaders.slice(0, 5).map((entry) => (
+          <div className="leader-row" key={`${entry.userId}-${entry.createdAt}`}>
+            <span>#{entry.rank}</span>
+            <strong>{entry.displayName}</strong>
+            <span>{entry.score.toLocaleString()}</span>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

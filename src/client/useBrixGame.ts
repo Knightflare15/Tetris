@@ -7,6 +7,7 @@ import {
   type PracticeBotSpeed,
   type RoomSnapshot,
   type ServerToClientEvents,
+  type SocialSummary,
 } from "../shared/types";
 
 const STORAGE_KEY = "coop-tetris-session";
@@ -32,6 +33,8 @@ export interface BrixGameState {
   roomId: string | null;
   latencyMs: number | null;
   isConnected: boolean;
+  social: SocialSummary | null;
+  socialMessage: string;
 }
 
 export interface BrixGameActions {
@@ -40,6 +43,11 @@ export interface BrixGameActions {
   authenticateWithPassword: (mode: AuthDialogMode, username: string, password: string) => Promise<boolean>;
   connectAndQueue: () => Promise<void>;
   startPractice: (botSpeed: PracticeBotSpeed) => Promise<void>;
+  refreshSocial: () => Promise<void>;
+  addFriend: (username: string) => Promise<void>;
+  acceptFriendRequest: (requestId: string) => Promise<void>;
+  declineFriendRequest: (requestId: string) => Promise<void>;
+  joinFriend: (friendId: string) => Promise<void>;
   reconnectStoredSession: () => Promise<void>;
   sendInput: (action: InputAction) => void;
   signOut: () => void;
@@ -60,6 +68,8 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [social, setSocial] = useState<SocialSummary | null>(null);
+  const [socialMessage, setSocialMessage] = useState("Sign in to add friends and chase the board.");
 
   useEffect(() => {
     snapshotRef.current = snapshot;
@@ -145,6 +155,10 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
       }
     });
 
+    socket.on("socialUpdated", () => {
+      void refreshSocialFromStorage(setSocial, setSocialMessage);
+    });
+
     socket.on("latency", ({ latencyMs }) => {
       setLatencyMs(latencyMs);
     });
@@ -182,6 +196,8 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
     setAuthMode("guest");
     setAuthMessage("Guest session ready. You can still login or register.");
     setStatus("Guest ready");
+    setSocial(null);
+    setSocialMessage("Friend features are available with an account.");
     disconnectSocket();
   }, [disconnectSocket, displayName, requestDemoToken]);
 
@@ -215,6 +231,8 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
       setAuthMessage("Signed in.");
       setStatus("Signed in");
       disconnectSocket();
+      connectSocket(body.token);
+      void refreshSocialWithToken(body.token, setSocial, setSocialMessage);
       return true;
     } catch {
       setAuthMessage("Could not reach auth service. Use guest mode.");
@@ -246,6 +264,35 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
     const token = await ensureToken();
     const socket = connectSocket(token);
     socket.emit("joinPractice", { botSpeed });
+  }, [connectSocket, ensureToken]);
+
+  const refreshSocial = useCallback(async () => {
+    await refreshSocialFromStorage(setSocial, setSocialMessage);
+  }, []);
+
+  const addFriend = useCallback(async (username: string) => {
+    if (await socialPost("/friends/request", { username }, setSocialMessage)) {
+      await refreshSocialFromStorage(setSocial, setSocialMessage);
+    }
+  }, []);
+
+  const acceptFriendRequest = useCallback(async (requestId: string) => {
+    if (await socialPost(`/friends/requests/${requestId}/accept`, {}, setSocialMessage)) {
+      await refreshSocialFromStorage(setSocial, setSocialMessage);
+    }
+  }, []);
+
+  const declineFriendRequest = useCallback(async (requestId: string) => {
+    if (await socialPost(`/friends/requests/${requestId}/decline`, {}, setSocialMessage)) {
+      await refreshSocialFromStorage(setSocial, setSocialMessage);
+    }
+  }, []);
+
+  const joinFriend = useCallback(async (friendId: string) => {
+    setStatus("Joining friend");
+    const token = await ensureToken();
+    const socket = connectSocket(token);
+    socket.emit("joinFriend", { friendId });
   }, [connectSocket, ensureToken]);
 
   const reconnectStoredSession = useCallback(async () => {
@@ -280,6 +327,8 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
     snapshotRef.current = null;
     setStatus("Offline");
     setLatencyMs(null);
+    setSocial(null);
+    setSocialMessage("Sign in to add friends and chase the board.");
   }, [clearStoredAuth, disconnectSocket]);
 
   useEffect(() => {
@@ -303,6 +352,10 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
               : "Signed in.",
           );
           setStatus(nextAuthMode === "guest" ? "Guest ready" : "Signed in");
+          if (nextAuthMode === "account") {
+            connectSocket(session.token);
+            void refreshSocialWithToken(session.token, setSocial, setSocialMessage);
+          }
           return;
         }
         clearStoredAuth("Session expired. Please sign in again or play as guest.");
@@ -310,7 +363,7 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
       .catch(() => {
         clearStoredAuth("Could not restore session. Please sign in again or play as guest.");
       });
-  }, [clearStoredAuth]);
+  }, [clearStoredAuth, connectSocket]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -340,15 +393,85 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
     roomId,
     latencyMs,
     isConnected,
+    social,
+    socialMessage,
     setDisplayName,
     authenticateAsGuest,
     authenticateWithPassword,
     connectAndQueue,
     startPractice,
+    refreshSocial,
+    addFriend,
+    acceptFriendRequest,
+    declineFriendRequest,
+    joinFriend,
     reconnectStoredSession,
     sendInput,
     signOut,
   };
+}
+
+async function refreshSocialFromStorage(
+  setSocial: (summary: SocialSummary | null) => void,
+  setSocialMessage: (message: string) => void,
+): Promise<void> {
+  const session = loadSession();
+  if (!session?.token || session.authMode !== "account") {
+    setSocial(null);
+    setSocialMessage("Sign in to add friends and chase the board.");
+    return;
+  }
+  await refreshSocialWithToken(session.token, setSocial, setSocialMessage);
+}
+
+async function refreshSocialWithToken(
+  token: string,
+  setSocial: (summary: SocialSummary | null) => void,
+  setSocialMessage: (message: string) => void,
+): Promise<void> {
+  try {
+    const response = await fetch("/social/summary", {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const body = (await response.json()) as SocialSummary & { message?: string };
+    if (!response.ok) {
+      setSocial(null);
+      setSocialMessage(body.message ?? "Could not load social features.");
+      return;
+    }
+    setSocial(body);
+    setSocialMessage("Friends and leaderboard are live.");
+  } catch {
+    setSocialMessage("Could not reach social service.");
+  }
+}
+
+async function socialPost(
+  endpoint: string,
+  body: Record<string, unknown>,
+  setSocialMessage: (message: string) => void,
+): Promise<boolean> {
+  const session = loadSession();
+  if (!session?.token || session.authMode !== "account") {
+    setSocialMessage("Sign in with an account first.");
+    return false;
+  }
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${session.token}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const responseBody = (await response.json().catch(() => null)) as { message?: string } | null;
+    setSocialMessage(responseBody?.message ?? "Social request failed.");
+    return false;
+  }
+  setSocialMessage("Social roster updated.");
+  return true;
 }
 
 function saveSession(session: StoredSession): void {
