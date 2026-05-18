@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import {
   LINES_PER_LEVEL,
   type InputAction,
+  type LineClearEffect,
   type PracticeBotSpeed,
   type RoomSnapshot,
   type TetrominoType,
@@ -11,11 +12,21 @@ import { playLineClearSound } from "./gameAudio";
 import { useBrixGame } from "./useBrixGame";
 import { WINE_FAMILIES, familyForType } from "./wineTheme";
 
+interface ScoreBurst {
+  id: number;
+  title: string;
+  detail: string;
+  lane: "left" | "right";
+  offset: number;
+  tone: "line" | "combo" | "tspin";
+}
+
 export function App(): ReactElement {
   const game = useBrixGame();
   const [authOpen, setAuthOpen] = useState(false);
   const [controlsOpen, setControlsOpen] = useState(false);
   const [practiceSpeed, setPracticeSpeed] = useState<PracticeBotSpeed>("slow");
+  const [scoreBursts, setScoreBursts] = useState<ScoreBurst[]>([]);
   const lastSoundEffectIdRef = useRef<number | null>(null);
 
   const playerQueue = useMemo(() => {
@@ -38,16 +49,19 @@ export function App(): ReactElement {
     }
     lastSoundEffectIdRef.current = effect.id;
     playLineClearSound(effect);
+    const burst = createScoreBurst(effect);
+    setScoreBursts((current) => [...current.slice(-3), burst]);
+    window.setTimeout(() => {
+      setScoreBursts((current) => current.filter((item) => item.id !== burst.id));
+    }, 1500);
   }, [game.snapshot?.clearEffect]);
 
   return (
     <main className="brix-app">
-      <DecorativeScene />
-
       <header className="brix-topbar">
         <div className="brand-lockup" aria-label="Brix">
-          <span className="brand-vine">est 2026</span>
           <h1>Brix</h1>
+          <span className="brand-vine">est 2026</span>
         </div>
         <div className="topbar-actions">
           <StatusPill status={game.status} connected={game.isConnected} />
@@ -78,11 +92,11 @@ export function App(): ReactElement {
           <section className="cellar-card match-card">
             <p className="eyebrow">Current match</p>
             <StatRow label="Level" value={String(level)} />
-            <StatRow label="Score" value={score.toLocaleString()} />
+            <StatRow label="Score" value={score.toLocaleString()} flashKey={lastClear?.id} />
             <StatRow label="Lines" value={String(lines)} />
             <StatRow label="Combo" value={combo > 1 ? `x${combo}` : "-"} />
             {lastClear && <StatRow label={lastClear.label} value={`+${lastClear.points}`} />}
-            <WineGlass progress={progress} level={level} />
+            <WineGlass progress={progress} level={level} clearEffect={lastClear} />
           </section>
         </aside>
 
@@ -93,6 +107,7 @@ export function App(): ReactElement {
             <span />
           </div>
           <BoardCanvas snapshot={game.snapshot} localSlot={game.localSlot} onInput = {game.sendInput}/>
+          <ScoreBurstLayer bursts={scoreBursts} />
           <label className="practice-speed-control">
             <span>Bot speed</span>
             <select
@@ -105,13 +120,13 @@ export function App(): ReactElement {
             </select>
           </label>
           <div className="match-actions">
-            <button type="button" onClick={() => void game.connectAndQueue()}>
+            <button className="match-button" type="button" onClick={() => void game.connectAndQueue()}>
               Find Match
             </button>
-            <button type="button" onClick={() => void game.startPractice(practiceSpeed)}>
+            <button className="practice-button" type="button" onClick={() => void game.startPractice(practiceSpeed)}>
               Practice
             </button>
-            <button className="secondary-button" type="button" onClick={() => void game.reconnectStoredSession()}>
+            <button className="reconnect-button" type="button" onClick={() => void game.reconnectStoredSession()}>
               Reconnect
             </button>
           </div>
@@ -182,14 +197,17 @@ function BoardCanvas({
   const touchRef = useRef<{
     startX: number;
     startY: number;
+    lastSoftDropY: number;
     lastStep: number;
-    startTime: number;
     moved: boolean;
+    longPressTriggered: boolean;
   } | null>(null);
+  const longPressTimerRef = useRef<number | null>(null);
 
   const STEP_SIZE = 22;
   const TAP_DISTANCE = 12;
-  const HARD_DROP_VELOCITY = 0.9;
+  const LONG_PRESS_MS = 420;
+  const LONG_PRESS_MOVE_TOLERANCE = 14;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -231,20 +249,43 @@ function BoardCanvas({
     if (animationFrameRef.current !== null) {
       window.cancelAnimationFrame(animationFrameRef.current);
     }
+    clearLongPressTimer();
   }, []);
+
+  function clearLongPressTimer(): void {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }
 
   function handleTouchStart(
     e: React.TouchEvent<HTMLCanvasElement>,
   ) {
+    e.preventDefault();
+    clearLongPressTimer();
+
     const touch = e.touches[0];
 
     touchRef.current = {
       startX: touch.clientX,
       startY: touch.clientY,
+      lastSoftDropY: touch.clientY,
       lastStep: 0,
-      startTime: performance.now(),
       moved: false,
+      longPressTriggered: false,
     };
+
+    longPressTimerRef.current = window.setTimeout(() => {
+      if (!touchRef.current || touchRef.current.moved) {
+        return;
+      }
+
+      touchRef.current.longPressTriggered = true;
+      touchRef.current.moved = true;
+      onInput("hardDrop");
+      clearLongPressTimer();
+    }, LONG_PRESS_MS);
   }
 
   function handleTouchMove(
@@ -262,6 +303,17 @@ function BoardCanvas({
     const deltaY =
       touch.clientY - touchRef.current.startY;
 
+    const softDropDeltaY =
+      touch.clientY - touchRef.current.lastSoftDropY;
+
+    if (touchRef.current.longPressTriggered) {
+      return;
+    }
+
+    if (Math.hypot(deltaX, deltaY) > LONG_PRESS_MOVE_TOLERANCE) {
+      clearLongPressTimer();
+    }
+
     // LEFT / RIGHT
 
     const currentStep = Math.trunc(
@@ -272,6 +324,7 @@ function BoardCanvas({
       currentStep - touchRef.current.lastStep;
 
     if (difference > 0) {
+      clearLongPressTimer();
       for (let i = 0; i < difference; i++) {
         onInput("moveRight");
       }
@@ -280,6 +333,7 @@ function BoardCanvas({
     }
 
     if (difference < 0) {
+      clearLongPressTimer();
       for (let i = 0; i < Math.abs(difference); i++) {
         onInput("moveLeft");
       }
@@ -291,10 +345,11 @@ function BoardCanvas({
 
     // SOFT DROP
 
-    if (deltaY > 28) {
+    if (softDropDeltaY > 28) {
+      clearLongPressTimer();
       onInput("softDrop");
 
-      touchRef.current.startY = touch.clientY;
+      touchRef.current.lastSoftDropY = touch.clientY;
       touchRef.current.moved = true;
     }
   }
@@ -303,6 +358,7 @@ function BoardCanvas({
     e: React.TouchEvent<HTMLCanvasElement>,
   ) {
     if (!touchRef.current) return;
+    clearLongPressTimer();
 
     const touch = e.changedTouches[0];
 
@@ -312,32 +368,21 @@ function BoardCanvas({
     const deltaY =
       touch.clientY - touchRef.current.startY;
 
-    const distance = Math.hypot(deltaX, deltaY);
-
-    const elapsed =
-      performance.now() -
-      touchRef.current.startTime;
-
-    const velocityY = deltaY / elapsed;
-
     // TAP = ROTATE
 
     if (
-      distance < TAP_DISTANCE &&
+      Math.hypot(deltaX, deltaY) < TAP_DISTANCE &&
+      !touchRef.current.longPressTriggered &&
       !touchRef.current.moved
     ) {
       onInput("rotateCW");
     }
 
-    // FAST DOWN SWIPE = HARD DROP
+    touchRef.current = null;
+  }
 
-    else if (
-      deltaY > 80 &&
-      velocityY > HARD_DROP_VELOCITY
-    ) {
-      onInput("hardDrop");
-    }
-
+  function handleTouchCancel(): void {
+    clearLongPressTimer();
     touchRef.current = null;
   }
 
@@ -354,6 +399,7 @@ function BoardCanvas({
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchCancel}
       />
     </section>
   );
@@ -475,18 +521,74 @@ function AuthModal({ authMessage, authMode, onClose, onGuest, onPassword }: {
   );
 }
 
-function WineGlass({ progress, level }: { progress: number; level: number }): ReactElement {
+function WineGlass({
+  progress,
+  level,
+  clearEffect,
+}: {
+  progress: number;
+  level: number;
+  clearEffect?: LineClearEffect;
+}): ReactElement {
   const fill = Math.max(0.08, Math.min(1, progress || (level > 1 ? 1 : 0.08)));
+  const celebrating = Boolean(clearEffect);
   return (
-    <div className="wine-progress" aria-label={`Wine glass level progress ${Math.round(fill * 100)} percent`}>
-      <div className="glass-bowl">
+    <div
+      className={`wine-progress ${celebrating ? "is-celebrating" : ""}`}
+      aria-label={`Wine glass level progress ${Math.round(fill * 100)} percent`}
+    >
+      <div className="glass-bowl" key={clearEffect?.id ?? "resting"}>
         <div className="wine-fill" style={{ height: `${fill * 100}%` }} />
+        <span className="wine-bubble bubble-one" />
+        <span className="wine-bubble bubble-two" />
+        <span className="wine-bubble bubble-three" />
       </div>
       <div className="glass-stem" />
       <div className="glass-base" />
       <span>Fill the glass to reach the next level.</span>
     </div>
   );
+}
+
+function ScoreBurstLayer({ bursts }: { bursts: ScoreBurst[] }): ReactElement {
+  return (
+    <div className="score-burst-layer" aria-live="polite" aria-atomic="false">
+      {bursts.map((burst) => (
+        <div
+          className={`score-burst score-burst-${burst.tone} score-burst-${burst.lane}`}
+          key={burst.id}
+          style={{ top: `${burst.offset}%` }}
+        >
+          <strong>{burst.title}</strong>
+          <span>{burst.detail}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function createScoreBurst(effect: LineClearEffect): ScoreBurst {
+  const title = effect.label.includes("T-Spin") ? "T-Spin!" : lineClearCallout(effect.count);
+  const detailParts = [`+${effect.points.toLocaleString()}`];
+  if (effect.label.includes("Combo")) {
+    detailParts.push("combo");
+  }
+  if (effect.label.includes("Back-to-back")) {
+    detailParts.push("back-to-back");
+  }
+
+  return {
+    id: effect.id,
+    title,
+    detail: detailParts.join(" / "),
+    lane: effect.id % 2 === 0 ? "left" : "right",
+    offset: 12 + ((effect.id * 23) % 42),
+    tone: effect.label.includes("T-Spin") ? "tspin" : effect.label.includes("Combo") ? "combo" : "line",
+  };
+}
+
+function lineClearCallout(count: number): string {
+  return ["", "uno!", "dos!", "tres!!", "quattro!!!"][count] ?? `${count} lines!`;
 }
 
 function FruitFamilies(): ReactElement {
@@ -543,28 +645,14 @@ function StatusPill({ status, connected }: { status: string; connected: boolean 
   );
 }
 
-function StatRow({ label, value }: { label: string; value: string }): ReactElement {
+function StatRow({ label, value, flashKey }: { label: string; value: string; flashKey?: number }): ReactElement {
   return (
     <p className="stat-row">
       <span>{label}</span>
-      <strong>{value}</strong>
+      <strong className={flashKey ? "score-stat-flash" : undefined} key={flashKey ?? value}>
+        {value}
+      </strong>
     </p>
-  );
-}
-
-function DecorativeScene(): ReactElement {
-  return (
-    <div className="decorative-scene" aria-hidden="true">
-      <div className="wine-bottle" />
-      <div className="table-glass" />
-      <div className="grape-crate">
-        <span />
-        <span />
-        <span />
-        <span />
-        <span />
-      </div>
-    </div>
   );
 }
 

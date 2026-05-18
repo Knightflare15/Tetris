@@ -67,7 +67,7 @@ app.post("/auth/register", async (req, res) => {
       return;
     }
     logger.error({ error }, "register failed");
-    res.status(500).json({ message: "Registration failed." });
+    res.status(500).json({ message: "Registration failed."});
   }
 });
 
