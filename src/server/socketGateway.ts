@@ -42,6 +42,29 @@ export function registerSocketGateway(
       matchmaking.join(socket, user);
     });
 
+    socket.on("joinPractice", (payload) => {
+      const botSpeed = payload?.botSpeed;
+      if (!isPracticeBotSpeed(botSpeed)) {
+        socket.emit("serverError", { message: "Invalid practice speed." });
+        return;
+      }
+      if (roomManager.playerFor(socket.id)) {
+        socket.emit("serverError", { message: "You are already in a room." });
+        return;
+      }
+      matchmaking.remove(socket.id);
+      const state = roomManager.createPracticeRoom(user, socket.id, botSpeed);
+      const player = state.players.A;
+      if (!player) {
+        throw new Error("Practice room created without player A.");
+      }
+      socket.emit("roomJoined", { roomId: state.roomId, slot: "A", reconnectToken: player.reconnectToken });
+      const snapshot = roomManager.snapshotForSocket(socket.id);
+      if (snapshot) {
+        socket.emit("snapshot", snapshot);
+      }
+    });
+
     socket.on("reconnectRoom", ({ roomId, reconnectToken }) => {
       const player = roomManager.reconnect(socket.id, user, roomId, reconnectToken);
       if (!player) {
@@ -93,4 +116,8 @@ function isValidInput(input: ClientInput): boolean {
       "hold",
     ].includes(input.action)
   );
+}
+
+function isPracticeBotSpeed(value: unknown): value is "slow" | "balanced" | "quick" {
+  return value === "slow" || value === "balanced" || value === "quick";
 }

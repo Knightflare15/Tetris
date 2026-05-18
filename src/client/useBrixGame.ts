@@ -4,6 +4,7 @@ import {
   type ClientToServerEvents,
   type InputAction,
   type PlayerSlot,
+  type PracticeBotSpeed,
   type RoomSnapshot,
   type ServerToClientEvents,
 } from "../shared/types";
@@ -38,6 +39,7 @@ export interface BrixGameActions {
   authenticateAsGuest: () => Promise<void>;
   authenticateWithPassword: (mode: AuthDialogMode, username: string, password: string) => Promise<boolean>;
   connectAndQueue: () => Promise<void>;
+  startPractice: (botSpeed: PracticeBotSpeed) => Promise<void>;
   reconnectStoredSession: () => Promise<void>;
   sendInput: (action: InputAction) => void;
   signOut: () => void;
@@ -239,6 +241,13 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
     socket.emit("joinMatchmaking");
   }, [connectSocket, ensureToken]);
 
+  const startPractice = useCallback(async (botSpeed: PracticeBotSpeed) => {
+    setStatus("Starting practice");
+    const token = await ensureToken();
+    const socket = connectSocket(token);
+    socket.emit("joinPractice", { botSpeed });
+  }, [connectSocket, ensureToken]);
+
   const reconnectStoredSession = useCallback(async () => {
     const session = loadSession();
     if (!session?.token || !session.roomId || !session.reconnectToken) {
@@ -335,6 +344,7 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
     authenticateAsGuest,
     authenticateWithPassword,
     connectAndQueue,
+    startPractice,
     reconnectStoredSession,
     sendInput,
     signOut,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { cellsFor, createPlayerState, createRoomState, simulateTick, startRoom } from "../src/shared/engine";
+import { matrixFor } from "../src/shared/tetrominoes";
 import type { ActivePiece, QueuedInput } from "../src/shared/types";
 
 function input(slot: "A" | "B", order: number, action: QueuedInput["action"]): QueuedInput {
@@ -110,7 +111,66 @@ describe("authoritative shared engine", () => {
     expect(room.players.A.active).not.toBeNull();
     expect(piecesOverlap(room.players.A.active, room.players.B.active)).toBe(false);
   });
+
+  it("does not top out when a spawned piece only overlaps the opponent active piece", () => {
+    const room = createRoomState("room", 321);
+    room.players.A = createPlayerState("A", "player-A", "A", "token-A", 1001);
+    room.players.B = createPlayerState("B", "player-B", "B", "token-B", 1002);
+    startRoom(room);
+
+    const playerA = room.players.A;
+    const playerB = room.players.B;
+    if (!playerA?.active || !playerB?.active) {
+      throw new Error("Expected both active pieces to spawn.");
+    }
+
+    playerB.active.x = 1;
+    playerB.active.y = 0;
+    playerA.active.y = 22;
+
+    simulateTick(room, [input("A", 1, "hardDrop")]);
+
+    expect(room.gameOver).toBe(false);
+    expect(room.status).toBe("playing");
+    expect(playerA.active).not.toBeNull();
+  });
+
+  it("awards more points for clearing multiple lines at once", () => {
+    const single = preparedClearRoom("single");
+    single.board[24] = single.board[24].map((_, x) => (x === 1 || x === 2 ? 0 : 1));
+    simulateTick(single, [input("A", 1, "hardDrop")]);
+
+    const double = preparedClearRoom("double");
+    double.board[23] = double.board[23].map((_, x) => (x === 1 || x === 2 ? 0 : 1));
+    double.board[24] = double.board[24].map((_, x) => (x === 1 || x === 2 ? 0 : 1));
+    simulateTick(double, [input("A", 1, "hardDrop")]);
+
+    expect(single.lines).toBe(1);
+    expect(double.lines).toBe(2);
+    expect(double.score).toBeGreaterThan(single.score);
+    expect(double.clearEffect?.label).toContain("Double");
+  });
 });
+
+function preparedClearRoom(roomId: string) {
+  const room = createRoomState(roomId, 2468);
+  room.players.A = createPlayerState("A", "player-A", "A", "token-A", 2001);
+  room.players.B = createPlayerState("B", "player-B", "B", "token-B", 2002);
+  startRoom(room);
+
+  if (!room.players.A || !room.players.B) {
+    throw new Error("Expected both players.");
+  }
+
+  room.players.A.active = {
+    type: "O",
+    matrix: matrixFor("O"),
+    x: 0,
+    y: 0,
+  };
+  room.players.B.active = null;
+  return room;
+}
 
 function piecesOverlap(left: ActivePiece | null, right: ActivePiece | null): boolean {
   if (!left || !right) {

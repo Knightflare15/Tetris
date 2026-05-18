@@ -7,9 +7,18 @@ import {
   snapshotRoom,
   startRoom,
 } from "../shared/engine";
-import { TICK_MS, type AuthUser, type PlayerGameState, type PlayerSlot, type QueuedInput, type RoomState } from "../shared/types";
+import {
+  TICK_MS,
+  type AuthUser,
+  type PlayerGameState,
+  type PlayerSlot,
+  type PracticeBotSpeed,
+  type QueuedInput,
+  type RoomState,
+} from "../shared/types";
 import { seedFromText } from "../shared/rng";
 import { logger } from "./logger";
+import { createBotRuntime, nextBotAction, type BotRuntime } from "./botPlayer";
 
 interface ManagedRoom {
   state: RoomState;
@@ -17,6 +26,7 @@ interface ManagedRoom {
   inputBuffer: QueuedInput[];
   interval: NodeJS.Timeout;
   cleanupTimer: NodeJS.Timeout | null;
+  bot: BotRuntime | null;
 }
 
 export class RoomManager {
@@ -45,6 +55,7 @@ export class RoomManager {
       inputBuffer: [],
       interval: setInterval(() => this.tickRoom(roomId), TICK_MS),
       cleanupTimer: null,
+      bot: null,
     };
 
     this.rooms.set(roomId, room);
@@ -54,6 +65,31 @@ export class RoomManager {
     this.io.sockets.sockets.get(socketB)?.join(roomId);
 
     logger.info({ roomId, players: [playerA.userId, playerB.userId] }, "room created");
+    return state;
+  }
+
+  createPracticeRoom(player: AuthUser, socketId: string, botSpeed: PracticeBotSpeed): RoomState {
+    const roomId = crypto.randomUUID();
+    const seed = seedFromText(`${roomId}:practice:${Date.now()}`);
+    const state = createRoomState(roomId, seed);
+    state.players.A = createPlayerState("A", player.userId, player.displayName, crypto.randomUUID(), seed + 101);
+    state.players.B = createPlayerState("B", `bot-${roomId}`, "Practice Bot", crypto.randomUUID(), seed + 202);
+    startRoom(state);
+
+    const room: ManagedRoom = {
+      state,
+      sockets: new Map([["A", socketId]]),
+      inputBuffer: [],
+      interval: setInterval(() => this.tickRoom(roomId), TICK_MS),
+      cleanupTimer: null,
+      bot: createBotRuntime(botSpeed),
+    };
+
+    this.rooms.set(roomId, room);
+    this.socketToRoom.set(socketId, roomId);
+    this.io.sockets.sockets.get(socketId)?.join(roomId);
+
+    logger.info({ roomId, player: player.userId }, "practice room created");
     return state;
   }
 
@@ -157,6 +193,10 @@ export class RoomManager {
     }
 
     const inputs = room.inputBuffer.splice(0);
+    const botInput = this.nextBotInput(room);
+    if (botInput) {
+      inputs.push(botInput);
+    }
     const diagnostics = simulateTick(room.state, inputs);
     if (diagnostics.locks.length || diagnostics.holdConflicts.length || diagnostics.lineClears || diagnostics.gameOver) {
       logger.info({ roomId, diagnostics }, "simulation diagnostics");
@@ -182,6 +222,31 @@ export class RoomManager {
     } else {
       room.cleanupTimer = null;
     }
+  }
+
+  private nextBotInput(room: ManagedRoom): QueuedInput | null {
+    if (!room.bot) {
+      return null;
+    }
+
+    const action = nextBotAction(room.state, room.bot);
+    if (!action) {
+      return null;
+    }
+
+    room.bot.seq += 1;
+    room.state.inputOrder += 1;
+    return {
+      seq: room.bot.seq,
+      action,
+      clientTick: room.state.tick,
+      sentAt: Date.now(),
+      socketId: "practice-bot",
+      playerId: room.state.players.B?.userId ?? "practice-bot",
+      slot: "B",
+      receivedAt: Date.now(),
+      serverOrder: room.state.inputOrder,
+    };
   }
 
   private destroyRoom(roomId: string): void {

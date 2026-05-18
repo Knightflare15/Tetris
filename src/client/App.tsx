@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
-import { LINES_PER_LEVEL, type InputAction, type RoomSnapshot, type TetrominoType } from "../shared/types";
-import { renderBoard, renderHold, renderPreview } from "./gameRenderer";
+import {
+  LINES_PER_LEVEL,
+  type InputAction,
+  type PracticeBotSpeed,
+  type RoomSnapshot,
+  type TetrominoType,
+} from "../shared/types";
+import { BOARD_CANVAS_HEIGHT, BOARD_CANVAS_WIDTH, renderBoard, renderHold, renderPreview } from "./gameRenderer";
+import { playLineClearSound } from "./gameAudio";
 import { useBrixGame } from "./useBrixGame";
 import { WINE_FAMILIES, familyForType } from "./wineTheme";
 
@@ -8,6 +15,8 @@ export function App(): ReactElement {
   const game = useBrixGame();
   const [authOpen, setAuthOpen] = useState(false);
   const [controlsOpen, setControlsOpen] = useState(false);
+  const [practiceSpeed, setPracticeSpeed] = useState<PracticeBotSpeed>("slow");
+  const lastSoundEffectIdRef = useRef<number | null>(null);
 
   const playerQueue = useMemo(() => {
     const player = game.localSlot ? game.snapshot?.players[game.localSlot] : game.snapshot?.players.A;
@@ -18,7 +27,18 @@ export function App(): ReactElement {
   const score = game.snapshot?.score ?? 0;
   const level = game.snapshot?.level ?? 1;
   const lines = game.snapshot?.lines ?? 0;
+  const combo = game.snapshot?.combo ?? 0;
+  const lastClear = game.snapshot?.clearEffect;
   const progress = (lines % LINES_PER_LEVEL) / LINES_PER_LEVEL;
+
+  useEffect(() => {
+    const effect = game.snapshot?.clearEffect;
+    if (!effect || effect.id === lastSoundEffectIdRef.current) {
+      return;
+    }
+    lastSoundEffectIdRef.current = effect.id;
+    playLineClearSound(effect);
+  }, [game.snapshot?.clearEffect]);
 
   return (
     <main className="brix-app">
@@ -60,6 +80,8 @@ export function App(): ReactElement {
             <StatRow label="Level" value={String(level)} />
             <StatRow label="Score" value={score.toLocaleString()} />
             <StatRow label="Lines" value={String(lines)} />
+            <StatRow label="Combo" value={combo > 1 ? `x${combo}` : "-"} />
+            {lastClear && <StatRow label={lastClear.label} value={`+${lastClear.points}`} />}
             <WineGlass progress={progress} level={level} />
           </section>
         </aside>
@@ -71,9 +93,23 @@ export function App(): ReactElement {
             <span />
           </div>
           <BoardCanvas snapshot={game.snapshot} localSlot={game.localSlot} onInput = {game.sendInput}/>
+          <label className="practice-speed-control">
+            <span>Bot speed</span>
+            <select
+              value={practiceSpeed}
+              onChange={(event) => setPracticeSpeed(event.target.value as PracticeBotSpeed)}
+            >
+              <option value="slow">Slow start</option>
+              <option value="balanced">Balanced</option>
+              <option value="quick">Quick</option>
+            </select>
+          </label>
           <div className="match-actions">
             <button type="button" onClick={() => void game.connectAndQueue()}>
               Find Match
+            </button>
+            <button type="button" onClick={() => void game.startPractice(practiceSpeed)}>
+              Practice
             </button>
             <button className="secondary-button" type="button" onClick={() => void game.reconnectStoredSession()}>
               Reconnect
@@ -139,6 +175,9 @@ function BoardCanvas({
   onInput: (action: InputAction) => void;
 }): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const animationActiveRef = useRef(false);
+  const lastClearEffectIdRef = useRef<number | null>(null);
 
   const touchRef = useRef<{
     startX: number;
@@ -153,10 +192,46 @@ function BoardCanvas({
   const HARD_DROP_VELOCITY = 0.9;
 
   useEffect(() => {
-    if (canvasRef.current) {
-      renderBoard(canvasRef.current, snapshot, localSlot);
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return;
+    }
+
+    const clearEffectId = snapshot?.clearEffect?.id ?? null;
+    if (clearEffectId !== null && clearEffectId !== lastClearEffectIdRef.current) {
+      lastClearEffectIdRef.current = clearEffectId;
+      animationActiveRef.current = true;
+      const startedAt = performance.now();
+      const durationMs = 520;
+
+      const animate = (now: number) => {
+        const progress = Math.min(1, (now - startedAt) / durationMs);
+        renderBoard(canvas, snapshot, localSlot, progress);
+        if (progress < 1) {
+          animationFrameRef.current = window.requestAnimationFrame(animate);
+          return;
+        }
+        animationActiveRef.current = false;
+        renderBoard(canvas, snapshot, localSlot);
+      };
+
+      if (animationFrameRef.current !== null) {
+        window.cancelAnimationFrame(animationFrameRef.current);
+      }
+      animationFrameRef.current = window.requestAnimationFrame(animate);
+      return;
+    }
+
+    if (!animationActiveRef.current) {
+      renderBoard(canvas, snapshot, localSlot);
     }
   }, [localSlot, snapshot]);
+
+  useEffect(() => () => {
+    if (animationFrameRef.current !== null) {
+      window.cancelAnimationFrame(animationFrameRef.current);
+    }
+  }, []);
 
   function handleTouchStart(
     e: React.TouchEvent<HTMLCanvasElement>,
@@ -273,8 +348,9 @@ function BoardCanvas({
     >
       <canvas
         ref={canvasRef}
-        width={300}
-        height={600}
+        width={BOARD_CANVAS_WIDTH}
+        height={BOARD_CANVAS_HEIGHT}
+        style={{ aspectRatio: `${BOARD_CANVAS_WIDTH} / ${BOARD_CANVAS_HEIGHT}` }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}

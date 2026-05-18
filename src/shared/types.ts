@@ -1,5 +1,5 @@
-export const ROWS = 20;
-export const COLS = 10;
+export const ROWS = 25;
+export const COLS = 15;
 export const TICK_RATE = 20;
 export const TICK_MS = 1000 / TICK_RATE;
 export const QUEUE_PREVIEW = 3;
@@ -8,6 +8,7 @@ export const BIAS_ROTATION_LEVELS = 6;
 
 export type PlayerSlot = "A" | "B";
 export type TetrominoType = "I" | "O" | "T" | "S" | "Z" | "J" | "L";
+export type PracticeBotSpeed = "slow" | "balanced" | "quick";
 export type CellValue = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export type Board = CellValue[][];
 export type Matrix = CellValue[][];
@@ -56,6 +57,8 @@ export interface PlayerGameState {
   canHold: boolean;
   pendingLock: boolean;
   generatorState: PieceGeneratorState;
+  lastMoveWasRotation: boolean;
+  lastLockTick: number;
 }
 
 export interface PieceGeneratorState {
@@ -80,7 +83,9 @@ export interface RoomSnapshot {
   score: number;
   level: number;
   lines: number;
+  combo: number;
   gameOver: boolean;
+  clearEffect?: LineClearEffect;
   winnerMessage?: string;
 }
 
@@ -106,6 +111,9 @@ export interface RoomState {
   score: number;
   level: number;
   lines: number;
+  combo: number;
+  backToBack: boolean;
+  clearEffect?: LineClearEffect;
   gameOver: boolean;
   seed: number;
   inputOrder: number;
@@ -129,7 +137,17 @@ export interface ServerToClientEvents {
 export interface ClientToServerEvents {
   authenticate: (payload: { token?: string; displayName?: string }) => void;
   joinMatchmaking: () => void;
+  joinPractice: (payload: { botSpeed: PracticeBotSpeed }) => void;
   reconnectRoom: (payload: { roomId: string; reconnectToken: string }) => void;
   input: (input: ClientInput) => void;
   pingCheck: (payload: { clientTime: number }) => void;
+}
+
+export interface LineClearEffect {
+  id: number;
+  tick: number;
+  rows: number[];
+  count: number;
+  label: string;
+  points: number;
 }

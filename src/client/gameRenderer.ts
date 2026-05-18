@@ -11,17 +11,21 @@ import {
 } from "../shared/types";
 import { familyForValue, familyForType } from "./wineTheme";
 
-const BOARD_BLOCK_SIZE = 30;
+export const BOARD_BLOCK_SIZE = 30;
+export const BOARD_CANVAS_WIDTH = COLS * BOARD_BLOCK_SIZE;
+export const BOARD_CANVAS_HEIGHT = ROWS * BOARD_BLOCK_SIZE;
 const PREVIEW_BLOCK_SIZE = 18;
 
 export function renderBoard(
   canvas: HTMLCanvasElement,
   snapshot: RoomSnapshot | null,
   localSlot: PlayerSlot | null,
+  lineClearProgress = 1,
 ): void {
   const context = getCanvasContext(canvas);
   context.clearRect(0, 0, canvas.width, canvas.height);
-  drawCellarGrid(context, canvas.width, canvas.height);
+  const boardSize = snapshot ? boardSizeFor(snapshot.board) : { rows: ROWS, cols: COLS };
+  drawCellarGrid(context, canvas.width, canvas.height, boardSize.cols, boardSize.rows);
 
   if (!snapshot) {
     return;
@@ -44,7 +48,15 @@ export function renderBoard(
     if (ghost) {
       for (const cell of cellsFor(ghost)) {
         if (cell.y >= 0) {
-          drawBoardCell(context, cell.x, cell.y, cell.value, slot === localSlot ? 0.24 : 0.13, true);
+          drawBoardCell(
+            context,
+            cell.x,
+            cell.y,
+            cell.value,
+            slot === localSlot ? 0.24 : 0.13,
+            true,
+            slot === localSlot ? "#9edcff" : "#ff9eaa",
+          );
         }
       }
     }
@@ -55,12 +67,16 @@ export function renderBoard(
     if (!player?.active) {
       continue;
     }
-    const alpha = slot === localSlot ? 0.96 : 0.65;
+    const alpha = slot === localSlot ? 0.96 : 0.55;
     for (const cell of cellsFor(player.active)) {
       if (cell.y >= 0) {
         drawBoardCell(context, cell.x, cell.y, cell.value, alpha);
       }
     }
+  }
+
+  if (snapshot.clearEffect && lineClearProgress < 1) {
+    drawLineClearEffect(context, snapshot.clearEffect.rows, boardSize.cols, lineClearProgress);
   }
 }
 
@@ -83,33 +99,39 @@ export function renderHold(canvas: HTMLCanvasElement, type: TetrominoType | null
   }
 }
 
-function drawCellarGrid(context: CanvasRenderingContext2D, width: number, height: number): void {
+function drawCellarGrid(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  cols: number,
+  rows: number,
+): void {
   const gradient = context.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, "#fae2bf");
-  gradient.addColorStop(1, "#efba79");
+  gradient.addColorStop(0, "#563505");
+  gradient.addColorStop(1, "#351f04");
   context.fillStyle = gradient;
   context.fillRect(0, 0, width, height);
 
   context.strokeStyle = "rgba(122, 71, 31, 0.2)";
   context.lineWidth = 1;
-  for (let x = 0; x <= COLS; x++) {
+  for (let x = 0; x <= cols; x++) {
     context.beginPath();
     context.moveTo(x * BOARD_BLOCK_SIZE, 0);
-    context.lineTo(x * BOARD_BLOCK_SIZE, ROWS * BOARD_BLOCK_SIZE);
+    context.lineTo(x * BOARD_BLOCK_SIZE, rows * BOARD_BLOCK_SIZE);
     context.stroke();
   }
-  for (let y = 0; y <= ROWS; y++) {
+  for (let y = 0; y <= rows; y++) {
     context.beginPath();
     context.moveTo(0, y * BOARD_BLOCK_SIZE);
-    context.lineTo(COLS * BOARD_BLOCK_SIZE, y * BOARD_BLOCK_SIZE);
+    context.lineTo(cols * BOARD_BLOCK_SIZE, y * BOARD_BLOCK_SIZE);
     context.stroke();
   }
 
   context.strokeStyle = "rgba(111, 55, 38, 0.32)";
   context.setLineDash([2, 8]);
   context.beginPath();
-  context.moveTo(width / 2, 16);
-  context.lineTo(width / 2, height - 16);
+  context.moveTo((cols * BOARD_BLOCK_SIZE) / 2, 16);
+  context.lineTo((cols * BOARD_BLOCK_SIZE) / 2, rows * BOARD_BLOCK_SIZE - 16);
   context.stroke();
   context.setLineDash([]);
 }
@@ -121,6 +143,7 @@ function drawBoardCell(
   value: number,
   alpha: number,
   outline = false,
+  outlineColor?: string,
 ): void {
   const family = familyForValue(value);
   const left = x * BOARD_BLOCK_SIZE + 2;
@@ -130,7 +153,7 @@ function drawBoardCell(
   context.save();
   context.globalAlpha = alpha;
   if (outline) {
-    context.strokeStyle = family.color;
+    context.strokeStyle = outlineColor ?? family.color;
     context.lineWidth = 3;
     roundedRect(context, left + 4, top + 4, size - 8, size - 8, 6);
     context.stroke();
@@ -155,6 +178,31 @@ function drawBoardCell(
   // context.textAlign = "center";
   // context.textBaseline = "middle";
   // context.fillText(family.shortName.slice(0, 1), left + size / 2, top + size / 2 + 1);
+  context.restore();
+}
+
+function drawLineClearEffect(
+  context: CanvasRenderingContext2D,
+  rows: number[],
+  cols: number,
+  progress: number,
+): void {
+  const alpha = Math.max(0, 1 - progress);
+  const sweepWidth = cols * BOARD_BLOCK_SIZE * Math.min(1, progress * 1.35);
+
+  context.save();
+  for (const row of rows) {
+    const top = row * BOARD_BLOCK_SIZE;
+    context.fillStyle = `rgba(255, 255, 255, ${0.36 * alpha})`;
+    context.fillRect(0, top, cols * BOARD_BLOCK_SIZE, BOARD_BLOCK_SIZE);
+
+    const gradient = context.createLinearGradient(0, top, sweepWidth, top);
+    gradient.addColorStop(0, "rgba(255, 255, 255, 0)");
+    gradient.addColorStop(0.62, `rgba(255, 240, 170, ${0.72 * alpha})`);
+    gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+    context.fillStyle = gradient;
+    context.fillRect(0, top + 2, sweepWidth, BOARD_BLOCK_SIZE - 4);
+  }
   context.restore();
 }
 
@@ -208,13 +256,16 @@ function ghostPieceFor(snapshot: RoomSnapshot, slot: PlayerSlot, piece: ActivePi
 
 function pieceCollidesWithBoard(snapshot: RoomSnapshot, piece: ActivePiece): boolean {
   return cellsFor(piece).some(({ x, y }) => {
-    if (x < 0 || x >= COLS || y >= ROWS) {
+    const boardRows = snapshot.board.length;
+    const boardCols = snapshot.board[y]?.length ?? COLS;
+
+    if (x < 0 || x >= boardCols || y >= boardRows) {
       return true;
     }
     if (y < 0) {
       return false;
     }
-    return snapshot.board[y][x] !== 0;
+    return snapshot.board[y]?.[x] !== 0;
   });
 }
 
@@ -248,6 +299,13 @@ function trimMatrix(matrix: Matrix): Matrix {
   const firstColumn = occupiedColumns.findIndex(Boolean);
   const lastColumn = occupiedColumns.lastIndexOf(true);
   return occupiedRows.map((row) => row.slice(firstColumn, lastColumn + 1));
+}
+
+function boardSizeFor(board: Matrix): { rows: number; cols: number } {
+  return {
+    rows: board.length,
+    cols: Math.max(...board.map((row) => row.length), 0),
+  };
 }
 
 function roundedRect(

@@ -122,6 +122,7 @@ app.get("/auth/me", (req, res) => {
 });
 
 const publicDir = path.resolve(process.cwd(), "dist/public");
+app.use("/sounds", express.static(path.resolve(process.cwd(), "sounds")));
 app.use(express.static(publicDir));
 app.get("*", (_req, res) => {
   res.sendFile(path.join(publicDir, "index.html"));

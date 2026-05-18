@@ -3,6 +3,7 @@ import {
   LINES_PER_LEVEL,
   QUEUE_PREVIEW,
   ROWS,
+  TICK_RATE,
   type ActivePiece,
   type Board,
   type CellValue,
@@ -21,6 +22,9 @@ import { matrixFor, TETROMINO_VALUE } from "./tetrominoes";
 const GRAVITY_TICKS_BASE = 20;
 const GRAVITY_TICKS_ACCELERATION = 2;
 const GRAVITY_TICKS_MIN = 2;
+const LINE_CLEAR_POINTS = [0, 100, 300, 500, 800] as const;
+const T_SPIN_POINTS = [400, 800, 1200, 1600] as const;
+const FAST_CLEAR_WINDOW_TICKS = 8 * TICK_RATE;
 
 export interface SimulationDiagnostics {
   locks: string[];
@@ -44,6 +48,8 @@ export function createRoomState(roomId: string, seed: number): RoomState {
     score: 0,
     level: 1,
     lines: 0,
+    combo: 0,
+    backToBack: false,
     gameOver: false,
     seed,
     inputOrder: 0,
@@ -70,6 +76,8 @@ export function createPlayerState(
     canHold: true,
     pendingLock: false,
     generatorState: createGenerator(seed),
+    lastMoveWasRotation: false,
+    lastLockTick: 0,
   };
   ensureQueue(player.queue, player.generatorState, slot, 1);
   return player;
@@ -139,7 +147,9 @@ export function snapshotRoom(state: RoomState): RoomSnapshot {
     score: state.score,
     level: state.level,
     lines: state.lines,
+    combo: state.combo,
     gameOver: state.gameOver,
+    clearEffect: state.clearEffect ? { ...state.clearEffect, rows: [...state.clearEffect.rows] } : undefined,
     winnerMessage: state.winnerMessage,
   };
 }
@@ -175,12 +185,18 @@ function applyMovementInput(state: RoomState, player: PlayerGameState, action: Q
 
   switch (action) {
     case "moveLeft":
-      tryMove(state, player.slot, player.active, -1, 0);
+      if (tryMove(state, player.slot, player.active, -1, 0)) {
+        player.lastMoveWasRotation = false;
+      }
       return;
     case "moveRight":
-      tryMove(state, player.slot, player.active, 1, 0);
+      if (tryMove(state, player.slot, player.active, 1, 0)) {
+        player.lastMoveWasRotation = false;
+      }
       return;
     case "softDrop":
+      state.score += 1;
+      player.lastMoveWasRotation = false;
       applyVerticalFall(state, player);
       return;
     case "rotateCW":
@@ -194,6 +210,7 @@ function applyMovementInput(state: RoomState, player: PlayerGameState, action: Q
         return;
       }
       while (tryMoveAgainstBoard(state.board, player.active, 0, 1)) {
+        state.score += 2;
         // Intentionally empty: the move function mutates one deterministic row at a time.
       }
       player.pendingLock = true;
@@ -237,7 +254,7 @@ function applyHold(state: RoomState, player: PlayerGameState): boolean {
     spawnNextPiece(state, player);
   }
 
-  if (player.active && collidesInRoom(state, player.slot, player.active)) {
+  if (player.active && collidesWithBoard(state.board, player.active)) {
     state.gameOver = true;
     state.status = "ended";
     state.winnerMessage = `${player.displayName} could not spawn after hold.`;
@@ -271,7 +288,8 @@ function processPendingLocks(state: RoomState, diagnostics: SimulationDiagnostic
     diagnostics.locks.push(`tick=${state.tick} slot=${player.slot} piece=${player.active.type}`);
     player.pendingLock = false;
     player.canHold = true;
-    clearLines(state, diagnostics);
+    clearLines(state, player.active, player, diagnostics);
+    player.lastLockTick = state.tick;
     spawnNextPiece(state, player);
   }
 }
@@ -295,8 +313,9 @@ function spawnNextPiece(state: RoomState, player: PlayerGameState): void {
   ensureQueue(player.queue, player.generatorState, player.slot, state.level, QUEUE_PREVIEW);
   player.active = createActivePiece(next, player.slot);
   player.pendingLock = false;
+  player.lastMoveWasRotation = false;
 
-  if (collidesInRoom(state, player.slot, player.active)) {
+  if (collidesWithBoard(state.board, player.active)) {
     state.gameOver = true;
     state.status = "ended";
     state.winnerMessage = `${player.displayName} topped out.`;
@@ -340,6 +359,10 @@ function tryRotate(state: RoomState, slot: PlayerSlot, piece: ActivePiece, direc
     if (!collidesInRoom(state, slot, candidate)) {
       piece.matrix = rotated;
       piece.x += offset;
+      const player = state.players[slot];
+      if (player) {
+        player.lastMoveWasRotation = true;
+      }
       return true;
     }
   }
@@ -401,19 +424,96 @@ function mergePiece(board: Board, piece: ActivePiece): void {
   }
 }
 
-function clearLines(state: RoomState, diagnostics: SimulationDiagnostics): void {
-  const remaining = state.board.filter((row) => row.some((cell) => cell === 0));
-  const cleared = ROWS - remaining.length;
+function clearLines(
+  state: RoomState,
+  lockedPiece: ActivePiece,
+  player: PlayerGameState,
+  diagnostics: SimulationDiagnostics,
+): void {
+  const clearedRows = state.board
+    .map((row, y) => (row.every((cell) => cell !== 0) ? y : -1))
+    .filter((y) => y >= 0);
+  const cleared = clearedRows.length;
   if (cleared === 0) {
+    state.combo = 0;
+    state.backToBack = false;
     return;
   }
 
+  const scoreEvent = scoreLineClear(state, lockedPiece, player, cleared);
+  const remaining = state.board.filter((row) => row.some((cell) => cell === 0));
   const emptyRows = Array.from({ length: cleared }, () => Array<CellValue>(COLS).fill(0));
   state.board = emptyRows.concat(remaining);
   state.lines += cleared;
-  state.score += cleared * (100 + cleared * 30) * state.level;
+  state.score += scoreEvent.points;
   state.level = Math.floor(state.lines / LINES_PER_LEVEL) + 1;
+  state.clearEffect = {
+    id: state.tick,
+    tick: state.tick,
+    rows: clearedRows,
+    count: cleared,
+    label: scoreEvent.label,
+    points: scoreEvent.points,
+  };
   diagnostics.lineClears += cleared;
+}
+
+function scoreLineClear(
+  state: RoomState,
+  lockedPiece: ActivePiece,
+  player: PlayerGameState,
+  cleared: number,
+): { label: string; points: number } {
+  const tSpin = isTSpin(state.board, lockedPiece, player);
+  const difficult = cleared === 4 || tSpin;
+  const base = (tSpin ? T_SPIN_POINTS[cleared] : LINE_CLEAR_POINTS[cleared]) * state.level;
+  const comboBonus = state.combo > 0 ? state.combo * 75 * state.level : 0;
+  const backToBackBonus = difficult && state.backToBack ? Math.floor(base * 0.5) : 0;
+  const speedBonus = state.tick - player.lastLockTick <= FAST_CLEAR_WINDOW_TICKS ? 100 * cleared * state.level : 0;
+
+  const combo = state.combo + 1;
+  state.combo = combo;
+  state.backToBack = difficult;
+
+  const label = [
+    tSpin ? "T-Spin" : labelForClear(cleared),
+    backToBackBonus > 0 ? "Back-to-back" : "",
+    comboBonus > 0 ? `Combo x${combo}` : "",
+    speedBonus > 0 ? "Fast clear" : "",
+  ].filter(Boolean).join(" + ");
+
+  return { label, points: base + comboBonus + backToBackBonus + speedBonus };
+}
+
+function labelForClear(cleared: number): string {
+  return ["", "Single", "Double", "Triple", "Brix"][cleared] ?? `${cleared} lines`;
+}
+
+function isTSpin(boardAfterClear: Board, piece: ActivePiece, player: PlayerGameState): boolean {
+  if (piece.type !== "T" || !player.lastMoveWasRotation) {
+    return false;
+  }
+
+  const centerX = piece.x + 1;
+  const centerY = piece.y + 1;
+  const corners = [
+    { x: centerX - 1, y: centerY - 1 },
+    { x: centerX + 1, y: centerY - 1 },
+    { x: centerX - 1, y: centerY + 1 },
+    { x: centerX + 1, y: centerY + 1 },
+  ];
+
+  const occupiedCorners = corners.filter(({ x, y }) => {
+    if (x < 0 || x >= COLS || y >= ROWS) {
+      return true;
+    }
+    if (y < 0) {
+      return false;
+    }
+    return boardAfterClear[y][x] !== 0;
+  }).length;
+
+  return occupiedCorners >= 3;
 }
 
 function gravityTicksForLevel(level: number): number {
