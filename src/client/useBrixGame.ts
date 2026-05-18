@@ -40,7 +40,15 @@ export interface BrixGameState {
 export interface BrixGameActions {
   setDisplayName: (value: string) => void;
   authenticateAsGuest: () => Promise<void>;
-  authenticateWithPassword: (mode: AuthDialogMode, username: string, password: string) => Promise<boolean>;
+  authenticateWithPassword: (
+    mode: AuthDialogMode,
+    username: string,
+    password: string,
+    email?: string,
+    otp?: string,
+  ) => Promise<boolean>;
+  requestPasswordReset: (email: string) => Promise<boolean>;
+  resetPassword: (email: string, otp: string, password: string) => Promise<boolean>;
   connectAndQueue: () => Promise<void>;
   startPractice: (botSpeed: PracticeBotSpeed) => Promise<void>;
   refreshSocial: () => Promise<void>;
@@ -205,6 +213,8 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
     mode: AuthDialogMode,
     username: string,
     password: string,
+    email = "",
+    otp = "",
   ): Promise<boolean> => {
     const endpoint = mode === "login" ? "/auth/login" : "/auth/register";
     setAuthMessage(mode === "login" ? "Logging in..." : "Creating account...");
@@ -215,11 +225,22 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           username,
+          email,
           displayName: username,
           password,
+          otp,
         }),
       });
-      const body = (await response.json()) as { token?: string; user?: { displayName: string }; message?: string };
+      const body = (await response.json()) as {
+        token?: string;
+        user?: { displayName: string };
+        message?: string;
+        otpRequired?: boolean;
+      };
+      if (body.otpRequired) {
+        setAuthMessage(body.message ?? "Enter the OTP sent to your email.");
+        return false;
+      }
       if (!response.ok || !body.token) {
         setAuthMessage(body.message ?? "Authentication failed.");
         return false;
@@ -239,6 +260,40 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
       return false;
     }
   }, [disconnectSocket]);
+
+  const requestPasswordReset = useCallback(async (email: string): Promise<boolean> => {
+    setAuthMessage("Sending password reset OTP...");
+    try {
+      const response = await fetch("/auth/forgot-password", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const body = (await response.json()) as { message?: string };
+      setAuthMessage(body.message ?? (response.ok ? "Password reset OTP sent." : "Password reset request failed."));
+      return response.ok;
+    } catch {
+      setAuthMessage("Could not reach auth service. Try again in a moment.");
+      return false;
+    }
+  }, []);
+
+  const resetPassword = useCallback(async (email: string, otp: string, password: string): Promise<boolean> => {
+    setAuthMessage("Resetting password...");
+    try {
+      const response = await fetch("/auth/reset-password", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, otp, password }),
+      });
+      const body = (await response.json()) as { message?: string };
+      setAuthMessage(body.message ?? (response.ok ? "Password reset." : "Password reset failed."));
+      return response.ok;
+    } catch {
+      setAuthMessage("Could not reach auth service. Try again in a moment.");
+      return false;
+    }
+  }, []);
 
   const ensureToken = useCallback(async (): Promise<string> => {
     const session = loadSession();
@@ -398,6 +453,8 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
     setDisplayName,
     authenticateAsGuest,
     authenticateWithPassword,
+    requestPasswordReset,
+    resetPassword,
     connectAndQueue,
     startPractice,
     refreshSocial,

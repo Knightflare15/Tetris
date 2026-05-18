@@ -1,5 +1,6 @@
 import http from "http";
 import path from "path";
+import crypto from "crypto";
 import cors from "cors";
 import express from "express";
 import { Server } from "socket.io";
@@ -13,9 +14,11 @@ import { registerSocketGateway } from "./socketGateway";
 import { getPrisma, isDatabaseConfigured } from "./database";
 import { hashPassword, verifyPassword } from "./passwordService";
 import { SocialError, SocialService } from "./socialService";
+import { EmailService } from "./emailService";
 
 const config = loadConfig();
 const authService = new AuthService(config.jwtSecret);
+const emailService = new EmailService(config);
 const app = express();
 const server = http.createServer(app);
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(server, {
@@ -25,6 +28,26 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(server, {
   },
 });
 let socialService: SocialService;
+
+interface PendingRegistration {
+  username: string;
+  email: string;
+  displayName: string;
+  passwordHash: string;
+  otpHash: string;
+  expiresAt: number;
+}
+
+interface PendingPasswordReset {
+  userId: string;
+  email: string;
+  displayName: string;
+  otpHash: string;
+  expiresAt: number;
+}
+
+const pendingRegistrations = new Map<string, PendingRegistration>();
+const pendingPasswordResets = new Map<string, PendingPasswordReset>();
 
 app.use(cors({ origin: config.nodeEnv === "production" ? false : config.clientOrigin }));
 app.use(express.json());
@@ -52,20 +75,60 @@ app.post("/auth/register", async (req, res) => {
   }
 
   try {
-    const passwordHash = await hashPassword(parsed.password);
+    const submittedOtp = normalizeOtp(req.body?.otp);
+    if (!submittedOtp) {
+      const existingUser = await getPrisma().user.findFirst({
+        where: { OR: [{ username: parsed.username }, { email: parsed.email }] },
+        select: { id: true },
+      });
+      if (existingUser) {
+        res.status(409).json({ message: "Username or email is already taken." });
+        return;
+      }
+
+      const otp = createOtp();
+      pendingRegistrations.set(parsed.email, {
+        username: parsed.username,
+        email: parsed.email,
+        displayName: parsed.displayName,
+        passwordHash: await hashPassword(parsed.password),
+        otpHash: hashOtp(otp),
+        expiresAt: Date.now() + 10 * 60 * 1000,
+      });
+      await emailService.sendRegistrationOtp(parsed.email, parsed.displayName, otp);
+      res.status(202).json({ otpRequired: true, message: "We sent a 6-digit OTP to your email." });
+      return;
+    }
+
+    const pending = pendingRegistrations.get(parsed.email);
+    if (
+      !pending ||
+      pending.expiresAt < Date.now() ||
+      pending.username !== parsed.username ||
+      pending.otpHash !== hashOtp(submittedOtp)
+    ) {
+      res.status(400).json({ message: "OTP is invalid or expired. Request a new code." });
+      return;
+    }
+
     const user = await getPrisma().user.create({
       data: {
-        username: parsed.username,
-        displayName: parsed.displayName,
-        passwordHash,
+        username: pending.username,
+        email: pending.email,
+        displayName: pending.displayName,
+        passwordHash: pending.passwordHash,
       },
       select: { id: true, displayName: true },
     });
+    pendingRegistrations.delete(parsed.email);
     const token = authService.createToken({ userId: user.id, displayName: user.displayName });
-    res.status(201).json({ token, user: { userId: user.id, displayName: user.displayName } });
+    res.status(201).json({
+      token,
+      user: { userId: user.id, displayName: user.displayName },
+    });
   } catch (error) {
     if (hasPrismaCode(error, "P2002")) {
-      res.status(409).json({ message: "Username is already taken." });
+      res.status(409).json({ message: "Username or email is already taken." });
       return;
     }
     logger.error({ error }, "register failed");
@@ -106,6 +169,75 @@ app.post("/auth/login", async (req, res) => {
   } catch (error) {
     logger.error({ error }, "login failed");
     res.status(500).json({ message: "Login failed." });
+  }
+});
+
+app.post("/auth/forgot-password", async (req, res) => {
+  if (!isDatabaseConfigured()) {
+    res.status(503).json({ message: "Database auth is not configured. Use guest mode." });
+    return;
+  }
+
+  const email = normalizeEmail(req.body?.email);
+  if (!email) {
+    res.status(400).json({ message: "A valid email address is required." });
+    return;
+  }
+
+  try {
+    const user = await getPrisma().user.findUnique({
+      where: { email },
+      select: { id: true, email: true, displayName: true },
+    });
+    if (user?.email) {
+      const otp = createOtp();
+      pendingPasswordResets.set(user.email, {
+        userId: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        otpHash: hashOtp(otp),
+        expiresAt: Date.now() + 10 * 60 * 1000,
+      });
+      await emailService.sendPasswordResetOtp(user.email, user.displayName, otp);
+    }
+
+    res.status(202).json({ message: "If that email exists, we sent a password reset OTP." });
+  } catch (error) {
+    logger.error({ error }, "forgot password failed");
+    res.status(500).json({ message: "Password reset request failed." });
+  }
+});
+
+app.post("/auth/reset-password", async (req, res) => {
+  if (!isDatabaseConfigured()) {
+    res.status(503).json({ message: "Database auth is not configured. Use guest mode." });
+    return;
+  }
+
+  const email = normalizeEmail(req.body?.email);
+  const otp = normalizeOtp(req.body?.otp);
+  const password = typeof req.body?.password === "string" ? req.body.password : "";
+  if (!email || !otp || password.length < 8) {
+    res.status(400).json({ message: "Email, 6-digit OTP, and a new password are required." });
+    return;
+  }
+
+  const pending = pendingPasswordResets.get(email);
+  if (!pending || pending.expiresAt < Date.now() || pending.otpHash !== hashOtp(otp)) {
+    res.status(400).json({ message: "OTP is invalid or expired. Request a new code." });
+    return;
+  }
+
+  try {
+    await getPrisma().user.update({
+      where: { id: pending.userId },
+      data: { passwordHash: await hashPassword(password) },
+    });
+    pendingPasswordResets.delete(email);
+    res.json({ message: "Password reset. You can log in with the new password." });
+  } catch (error) {
+    logger.error({ error }, "password reset failed");
+    res.status(500).json({ message: "Password reset failed." });
   }
 });
 
@@ -198,7 +330,7 @@ server.listen(config.port, () => {
 });
 
 type ParsedCredentials =
-  | { ok: true; username: string; displayName: string; password: string }
+  | { ok: true; username: string; email: string; displayName: string; password: string }
   | { ok: false; message: string };
 
 function parseCredentials(body: unknown): ParsedCredentials {
@@ -208,20 +340,44 @@ function parseCredentials(body: unknown): ParsedCredentials {
 
   const record = body as Record<string, unknown>;
   const username = normalizeUsername(record.username);
+  const email = normalizeEmail(record.email);
   const displayName = typeof record.displayName === "string" ? record.displayName.trim().slice(0, 24) : username;
   const password = typeof record.password === "string" ? record.password : "";
 
   if (!username || username.length < 3) {
     return { ok: false, message: "Username must be at least 3 characters." };
   }
+  if (!email) {
+    return { ok: false, message: "A valid email address is required." };
+  }
   if (password.length < 8) {
     return { ok: false, message: "Password must be at least 8 characters." };
   }
-  return { ok: true, username, displayName: displayName || username, password };
+  return { ok: true, username, email, displayName: displayName || username, password };
 }
 
 function normalizeUsername(value: unknown): string {
   return typeof value === "string" ? value.trim().toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 24) : "";
+}
+
+function normalizeEmail(value: unknown): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+  const email = value.trim().toLowerCase().slice(0, 254);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "";
+}
+
+function normalizeOtp(value: unknown): string {
+  return typeof value === "string" ? value.replace(/\D/g, "").slice(0, 6) : "";
+}
+
+function createOtp(): string {
+  return crypto.randomInt(100000, 1000000).toString();
+}
+
+function hashOtp(otp: string): string {
+  return crypto.createHash("sha256").update(otp).digest("hex");
 }
 
 function authHeaderToken(value: string | undefined): string | null {

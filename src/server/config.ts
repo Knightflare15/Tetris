@@ -8,6 +8,8 @@ export interface ServerConfig {
   jwtSecret: string;
   clientOrigin: string;
   disconnectGraceMs: number;
+  resendApiKey?: string;
+  emailFrom: string;
 }
 
 export function loadConfig(): ServerConfig {
@@ -24,5 +26,7 @@ export function loadConfig(): ServerConfig {
     jwtSecret,
     clientOrigin: process.env.CLIENT_ORIGIN ?? "http://localhost:8080",
     disconnectGraceMs: Number(process.env.DISCONNECT_GRACE_MS ?? 30000),
+    resendApiKey: process.env.RESEND_API_KEY,
+    emailFrom: process.env.EMAIL_FROM ?? "Brix <onboarding@resend.dev>",
   };
 }

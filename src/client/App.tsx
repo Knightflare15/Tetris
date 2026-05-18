@@ -180,12 +180,14 @@ export function App(): ReactElement {
           onGuest={async () => {
             await game.authenticateAsGuest();
           }}
-          onPassword={async (mode, username, password) => {
-            const ok = await game.authenticateWithPassword(mode, username, password);
+          onPassword={async (mode, username, password, email, otp) => {
+            const ok = await game.authenticateWithPassword(mode, username, password, email, otp);
             if (ok) {
               setAuthOpen(false);
             }
           }}
+          onRequestReset={game.requestPasswordReset}
+          onResetPassword={game.resetPassword}
         />
       )}
     </main>
@@ -561,22 +563,39 @@ function SocialHub({
   );
 }
 
-function AuthModal({ authMessage, authMode, onClose, onGuest, onPassword }: {
+function AuthModal({ authMessage, authMode, onClose, onGuest, onPassword, onRequestReset, onResetPassword }: {
   authMessage: string;
   authMode: "guest" | "account" | null;
   onClose: () => void;
   onGuest: () => Promise<void>;
-  onPassword: (mode: "login" | "register", username: string, password: string) => Promise<void>;
+  onPassword: (mode: "login" | "register", username: string, password: string, email: string, otp: string) => Promise<void>;
+  onRequestReset: (email: string) => Promise<boolean>;
+  onResetPassword: (email: string, otp: string, password: string) => Promise<boolean>;
 }): ReactElement {
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const [mode, setMode] = useState<"login" | "register" | "reset">("login");
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
     setBusy(true);
     try {
-      await onPassword(mode, username, password);
+      if (mode === "reset") {
+        if (otp) {
+          const ok = await onResetPassword(email, otp, password);
+          if (ok) {
+            setMode("login");
+            setPassword("");
+            setOtp("");
+          }
+          return;
+        }
+        await onRequestReset(email);
+        return;
+      }
+      await onPassword(mode, username, password, email, otp);
     } finally {
       setBusy(false);
     }
@@ -589,7 +608,7 @@ function AuthModal({ authMessage, authMode, onClose, onGuest, onPassword }: {
           x
         </button>
         <p className="eyebrow">Brix cellar</p>
-        <h2 id="authTitle">{mode === "login" ? "Login" : "Create account"}</h2>
+        <h2 id="authTitle">{mode === "login" ? "Login" : mode === "register" ? "Create account" : "Reset password"}</h2>
         <p>{authMessage}</p>
 
         <div className="segmented-control" role="tablist" aria-label="Auth mode">
@@ -601,17 +620,35 @@ function AuthModal({ authMessage, authMode, onClose, onGuest, onPassword }: {
           </button>
         </div>
 
-        <label className="field-label" htmlFor="authUsername">Username</label>
-        <input
-          id="authUsername"
-          maxLength={24}
-          autoComplete="username"
-          value={username}
-          onChange={(event) => setUsername(event.target.value)}
-          placeholder="Username"
-        />
+        {mode !== "reset" && (
+          <>
+            <label className="field-label" htmlFor="authUsername">Username</label>
+            <input
+              id="authUsername"
+              maxLength={24}
+              autoComplete="username"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              placeholder="Username"
+            />
+          </>
+        )}
 
-        <label className="field-label" htmlFor="authPassword">Password</label>
+        {mode !== "login" && (
+          <>
+            <label className="field-label" htmlFor="authEmail">Email</label>
+            <input
+              id="authEmail"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="you@example.com"
+            />
+          </>
+        )}
+
+        <label className="field-label" htmlFor="authPassword">{mode === "reset" ? "New password" : "Password"}</label>
         <input
           id="authPassword"
           type="password"
@@ -621,9 +658,29 @@ function AuthModal({ authMessage, authMode, onClose, onGuest, onPassword }: {
           placeholder="At least 8 characters"
         />
 
+        {mode !== "login" && (
+          <>
+            <label className="field-label" htmlFor="authOtp">OTP</label>
+            <input
+              id="authOtp"
+              inputMode="numeric"
+              maxLength={6}
+              autoComplete="one-time-code"
+              value={otp}
+              onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="Leave blank to send code"
+            />
+          </>
+        )}
+
         <button type="button" disabled={busy} onClick={() => void submit()}>
-          {mode === "login" ? "Login" : "Register"}
+          {mode === "login" ? "Login" : mode === "register" ? (otp ? "Verify and Register" : "Send OTP") : otp ? "Reset Password" : "Send Reset OTP"}
         </button>
+        {mode === "login" && (
+          <button className="secondary-button" type="button" disabled={busy} onClick={() => setMode("reset")}>
+            Forgot Password
+          </button>
+        )}
         <button
           className="secondary-button"
           type="button"
