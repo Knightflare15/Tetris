@@ -50,6 +50,7 @@ export function createRoomState(roomId: string, seed: number): RoomState {
     lines: 0,
     combo: 0,
     backToBack: false,
+    lastClearSlot: null,
     gameOver: false,
     seed,
     inputOrder: 0,
@@ -78,6 +79,7 @@ export function createPlayerState(
     generatorState: createGenerator(seed),
     lastMoveWasRotation: false,
     lastLockTick: 0,
+    spawnCount: 0,
   };
   ensureQueue(player.queue, player.generatorState, slot, 1);
   return player;
@@ -249,7 +251,8 @@ function applyHold(state: RoomState, player: PlayerGameState): boolean {
   player.canHold = false;
 
   if (incoming) {
-    player.active = createActivePiece(incoming, player.slot);
+    player.active = createActivePiece(incoming, player.slot, player.spawnCount);
+    player.spawnCount += 1;
   } else {
     spawnNextPiece(state, player);
   }
@@ -311,7 +314,8 @@ function spawnNextPiece(state: RoomState, player: PlayerGameState): void {
   }
 
   ensureQueue(player.queue, player.generatorState, player.slot, state.level, QUEUE_PREVIEW);
-  player.active = createActivePiece(next, player.slot);
+  player.active = createActivePiece(next, player.slot, player.spawnCount);
+  player.spawnCount += 1;
   player.pendingLock = false;
   player.lastMoveWasRotation = false;
 
@@ -322,14 +326,25 @@ function spawnNextPiece(state: RoomState, player: PlayerGameState): void {
   }
 }
 
-function createActivePiece(type: TetrominoType, slot: PlayerSlot): ActivePiece {
+function createActivePiece(type: TetrominoType, slot: PlayerSlot, spawnCount: number): ActivePiece {
   const matrix = matrixFor(type);
+  const width = matrix[0].length;
   return {
     type,
     matrix,
-    x: slot === "A" ? 1 : COLS - matrix[0].length - 1,
+    x: spawnColumnFor(slot, width, type, spawnCount),
     y: -1,
   };
+}
+
+function spawnColumnFor(slot: PlayerSlot, width: number, type: TetrominoType, spawnCount: number): number {
+  const leftLane = [0, 1, 2, 3];
+  const typeBias = ["I", "O", "T", "S", "Z", "J", "L"].indexOf(type);
+  const offset = leftLane[(spawnCount + Math.max(typeBias, 0)) % leftLane.length];
+  if (slot === "A") {
+    return offset;
+  }
+  return COLS - width - offset;
 }
 
 function tryMove(state: RoomState, slot: PlayerSlot, piece: ActivePiece, dx: number, dy: number): boolean {
@@ -437,6 +452,7 @@ function clearLines(
   if (cleared === 0) {
     state.combo = 0;
     state.backToBack = false;
+    state.lastClearSlot = null;
     return;
   }
 
@@ -468,21 +484,27 @@ function scoreLineClear(
   const difficult = cleared === 4 || tSpin;
   const base = (tSpin ? T_SPIN_POINTS[cleared] : LINE_CLEAR_POINTS[cleared]) * state.level;
   const comboBonus = state.combo > 0 ? state.combo * 75 * state.level : 0;
+  const relayBonus =
+    state.combo > 0 && state.lastClearSlot && state.lastClearSlot !== player.slot
+      ? state.combo * 125 * state.level
+      : 0;
   const backToBackBonus = difficult && state.backToBack ? Math.floor(base * 0.5) : 0;
   const speedBonus = state.tick - player.lastLockTick <= FAST_CLEAR_WINDOW_TICKS ? 100 * cleared * state.level : 0;
 
   const combo = state.combo + 1;
   state.combo = combo;
   state.backToBack = difficult;
+  state.lastClearSlot = player.slot;
 
   const label = [
     tSpin ? "T-Spin" : labelForClear(cleared),
     backToBackBonus > 0 ? "Back-to-back" : "",
     comboBonus > 0 ? `Combo x${combo}` : "",
+    relayBonus > 0 ? "Relay" : "",
     speedBonus > 0 ? "Fast clear" : "",
   ].filter(Boolean).join(" + ");
 
-  return { label, points: base + comboBonus + backToBackBonus + speedBonus };
+  return { label, points: base + comboBonus + relayBonus + backToBackBonus + speedBonus };
 }
 
 function labelForClear(cleared: number): string {

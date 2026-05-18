@@ -59,6 +59,7 @@ export interface PlayerGameState {
   generatorState: PieceGeneratorState;
   lastMoveWasRotation: boolean;
   lastLockTick: number;
+  spawnCount: number;
 }
 
 export interface PieceGeneratorState {
@@ -113,6 +114,7 @@ export interface RoomState {
   lines: number;
   combo: number;
   backToBack: boolean;
+  lastClearSlot: PlayerSlot | null;
   clearEffect?: LineClearEffect;
   gameOver: boolean;
   seed: number;

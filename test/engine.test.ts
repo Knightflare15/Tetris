@@ -64,6 +64,25 @@ describe("authoritative shared engine", () => {
     expect(piecesOverlap(room.players.A.active, room.players.B.active)).toBe(false);
   });
 
+  it("varies spawn columns within each player's lane", () => {
+    const room = createRoomState("spawn-variation", 741);
+    room.players.A = createPlayerState("A", "player-A", "A", "token-A", 1234);
+    room.players.B = createPlayerState("B", "player-B", "B", "token-B", 5678);
+    startRoom(room);
+    room.players.B.active = null;
+
+    const spawnColumns: number[] = [];
+    for (let step = 0; step < 4; step++) {
+      if (!room.players.A.active) {
+        throw new Error("Expected player A to have an active piece.");
+      }
+      spawnColumns.push(room.players.A.active.x);
+      simulateTick(room, [input("A", step + 1, "hardDrop")]);
+    }
+
+    expect(new Set(spawnColumns).size).toBeGreaterThan(1);
+  });
+
   it("hard drop does not treat the opponent active piece as locked floor", () => {
     const room = createRoomState("room", 987);
     room.players.A = createPlayerState("A", "player-A", "A", "token-A", 777);
@@ -150,6 +169,17 @@ describe("authoritative shared engine", () => {
     expect(double.score).toBeGreaterThan(single.score);
     expect(double.clearEffect?.label).toContain("Double");
   });
+
+  it("rewards combo handoffs between players", () => {
+    const relay = preparedRelayRoom("relay", "A");
+    simulateTick(relay, [input("B", 1, "hardDrop")]);
+
+    const samePlayer = preparedRelayRoom("same-player", "B");
+    simulateTick(samePlayer, [input("B", 1, "hardDrop")]);
+
+    expect(relay.score).toBeGreaterThan(samePlayer.score);
+    expect(relay.clearEffect?.label).toContain("Relay");
+  });
 });
 
 function preparedClearRoom(roomId: string) {
@@ -169,6 +199,29 @@ function preparedClearRoom(roomId: string) {
     y: 0,
   };
   room.players.B.active = null;
+  return room;
+}
+
+function preparedRelayRoom(roomId: string, lastClearSlot: "A" | "B") {
+  const room = createRoomState(roomId, 8642);
+  room.players.A = createPlayerState("A", "player-A", "A", "token-A", 3001);
+  room.players.B = createPlayerState("B", "player-B", "B", "token-B", 3002);
+  startRoom(room);
+
+  if (!room.players.A || !room.players.B) {
+    throw new Error("Expected both players.");
+  }
+
+  room.combo = 1;
+  room.lastClearSlot = lastClearSlot;
+  room.players.A.active = null;
+  room.players.B.active = {
+    type: "O",
+    matrix: matrixFor("O"),
+    x: 5,
+    y: 0,
+  };
+  room.board[24] = room.board[24].map((_, x) => (x === 6 || x === 7 ? 0 : 1));
   return room;
 }
 
