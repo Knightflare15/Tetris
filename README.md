@@ -108,6 +108,25 @@ If you want SSO enabled locally, add the OIDC values in `.env` and make sure you
 http://localhost:3000/auth/oidc/callback
 ```
 
+For Google, create a Web application OAuth client in Google Cloud and use:
+
+```text
+OIDC_PROVIDER_NAME=Google
+OIDC_PROVIDER_ID=google
+OIDC_ISSUER_URL=https://accounts.google.com
+OIDC_SCOPES=openid profile email
+```
+
+Google Cloud also needs these exact values on the OAuth client:
+
+```text
+Authorized JavaScript origin:
+- https://tmason.azurewebsites.net
+
+Authorized redirect URI:
+- https://tmason.azurewebsites.net/auth/oidc/callback
+```
+
 ## Production Build
 
 ```bash
