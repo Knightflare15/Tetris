@@ -15,6 +15,7 @@ The project now has four meaningful product layers:
 
 - Server-authoritative realtime co-op multiplayer on one shared board.
 - Guest auth plus account auth backed by Prisma.
+- Optional OpenID Connect single sign-on layered onto the account system.
 - OTP-based registration and forgot-password flows.
 - Resend email integration with a logger fallback for local development.
 - Friend requests, online presence, friend join flow, and global leaderboard.
@@ -42,6 +43,7 @@ Account mode is no longer just login/register boilerplate. The server now expose
 
 - `POST /auth/register`: two-step registration with email OTP.
 - `POST /auth/login`: username/password login.
+- `GET /auth/oidc/start` and `GET /auth/oidc/callback`: authorization-code + PKCE single sign-on flow.
 - `POST /auth/forgot-password` and `POST /auth/reset-password`: reset flow via OTP.
 - `GET /auth/me`: token restore.
 - `GET /social/summary`: friends, requests, and leaderboard payload for the UI.
@@ -99,6 +101,12 @@ http://localhost:8080
 ```
 
 If you are testing account OTP flows without Resend configured, watch the server terminal for `registration otp` or `password reset otp` log lines.
+
+If you want SSO enabled locally, add the OIDC values in `.env` and make sure your identity provider allows the callback URL:
+
+```text
+http://localhost:3000/auth/oidc/callback
+```
 
 ## Production Build
 

@@ -3,6 +3,7 @@ import path from "path";
 import crypto from "crypto";
 import cors from "cors";
 import express from "express";
+import type { Prisma } from "@prisma/client";
 import { Server } from "socket.io";
 import type { ClientToServerEvents, ServerToClientEvents } from "../shared/types";
 import { AuthService } from "./authService";
@@ -15,10 +16,12 @@ import { getPrisma, isDatabaseConfigured } from "./database";
 import { hashPassword, verifyPassword } from "./passwordService";
 import { SocialError, SocialService } from "./socialService";
 import { EmailService } from "./emailService";
+import { OidcService, type OidcUserProfile } from "./oidcService";
 
 const config = loadConfig();
 const authService = new AuthService(config.jwtSecret);
 const emailService = new EmailService(config);
+const oidcService = config.oidc ? new OidcService(config.oidc) : null;
 const app = express();
 const server = http.createServer(app);
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(server, {
@@ -54,6 +57,67 @@ app.use(express.json());
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "coop-tetris", time: new Date().toISOString() });
+});
+
+app.get("/auth/oidc/config", (_req, res) => {
+  res.json({
+    enabled: Boolean(oidcService && isDatabaseConfigured()),
+    providerName: oidcService?.providerName ?? null,
+  });
+});
+
+app.get("/auth/oidc/start", async (_req, res) => {
+  if (!oidcService) {
+    res.status(404).json({ message: "Single sign-on is not configured." });
+    return;
+  }
+  if (!isDatabaseConfigured()) {
+    res.status(503).json({ message: "Database auth is not configured." });
+    return;
+  }
+
+  try {
+    res.redirect(await oidcService.createAuthorizationUrl());
+  } catch (error) {
+    logger.error({ error }, "oidc authorization start failed");
+    res.redirect(buildAuthRedirect({ error: "Could not start single sign-on." }));
+  }
+});
+
+app.get("/auth/oidc/callback", async (req, res) => {
+  if (!oidcService) {
+    res.redirect(buildAuthRedirect({ error: "Single sign-on is not configured." }));
+    return;
+  }
+  if (!isDatabaseConfigured()) {
+    res.redirect(buildAuthRedirect({ error: "Database auth is not configured." }));
+    return;
+  }
+
+  const providerError = typeof req.query.error === "string" ? req.query.error : "";
+  const providerErrorDescription =
+    typeof req.query.error_description === "string" ? req.query.error_description : "";
+  if (providerError) {
+    res.redirect(buildAuthRedirect({ error: providerErrorDescription || providerError }));
+    return;
+  }
+
+  const code = typeof req.query.code === "string" ? req.query.code : "";
+  const state = typeof req.query.state === "string" ? req.query.state : "";
+  if (!code || !state) {
+    res.redirect(buildAuthRedirect({ error: "Missing authorization code from the identity provider." }));
+    return;
+  }
+
+  try {
+    const profile = await oidcService.exchangeCode(code, state);
+    const user = await findOrCreateOidcUser(profile);
+    const token = authService.createToken({ userId: user.id, displayName: user.displayName });
+    res.redirect(buildAuthRedirect({ token }));
+  } catch (error) {
+    logger.error({ error }, "oidc callback failed");
+    res.redirect(buildAuthRedirect({ error: errorMessage(error, "Single sign-on failed.") }));
+  }
 });
 
 app.post("/auth/demo", (req, res) => {
@@ -154,7 +218,15 @@ app.post("/auth/login", async (req, res) => {
       where: { username },
       select: { id: true, displayName: true, passwordHash: true },
     });
-    if (!user || !(await verifyPassword(password, user.passwordHash))) {
+    if (!user) {
+      res.status(401).json({ message: "Invalid username or password." });
+      return;
+    }
+    if (!user.passwordHash) {
+      res.status(400).json({ message: "This account uses single sign-on. Continue with your identity provider." });
+      return;
+    }
+    if (!(await verifyPassword(password, user.passwordHash))) {
       res.status(401).json({ message: "Invalid username or password." });
       return;
     }
@@ -325,8 +397,8 @@ socialService = new SocialService(io, roomManager);
 const matchmaking = new MatchmakingService(io, roomManager);
 registerSocketGateway(io, authService, roomManager, matchmaking, socialService);
 
-server.listen(config.port, () => {
-  logger.info({ port: config.port, env: config.nodeEnv }, "coop tetris server listening");
+server.listen(config.port, config.host, () => {
+  logger.info({ host: config.host, port: config.port, env: config.nodeEnv }, "coop tetris server listening");
 });
 
 type ParsedCredentials =
@@ -413,4 +485,132 @@ function handleSocialError(res: express.Response, error: unknown, logMessage: st
 
 function hasPrismaCode(error: unknown, code: string): boolean {
   return Boolean(error && typeof error === "object" && "code" in error && (error as { code?: unknown }).code === code);
+}
+
+async function findOrCreateOidcUser(profile: OidcUserProfile): Promise<{ id: string; displayName: string }> {
+  const existingAccount = await getPrisma().oidcAccount.findUnique({
+    where: {
+      provider_providerAccountId: {
+        provider: profile.provider,
+        providerAccountId: profile.providerAccountId,
+      },
+    },
+    include: {
+      user: {
+        select: { id: true, displayName: true },
+      },
+    },
+  });
+
+  if (existingAccount?.user) {
+    const now = new Date();
+    await getPrisma().oidcAccount.update({
+      where: { id: existingAccount.id },
+      data: {
+        email: profile.email,
+        emailVerified: profile.emailVerified,
+        lastLoginAt: now,
+        user: {
+          update: {
+            displayName: normalizeDisplayName(profile.displayName),
+            email: profile.email,
+            lastLoginAt: now,
+          },
+        },
+      },
+    });
+    return {
+      id: existingAccount.user.id,
+      displayName: normalizeDisplayName(profile.displayName),
+    };
+  }
+
+  const now = new Date();
+  return getPrisma().$transaction(async (tx) => {
+    let user = await tx.user.findUnique({
+      where: { email: profile.email },
+      select: { id: true, displayName: true },
+    });
+
+    if (!user) {
+      user = await tx.user.create({
+        data: {
+          username: await createUniqueUsername(tx, profile.usernameHint),
+          email: profile.email,
+          displayName: normalizeDisplayName(profile.displayName),
+          lastLoginAt: now,
+        },
+        select: { id: true, displayName: true },
+      });
+    } else {
+      user = await tx.user.update({
+        where: { id: user.id },
+        data: {
+          email: profile.email,
+          displayName: normalizeDisplayName(profile.displayName),
+          lastLoginAt: now,
+        },
+        select: { id: true, displayName: true },
+      });
+    }
+
+    await tx.oidcAccount.create({
+      data: {
+        provider: profile.provider,
+        providerAccountId: profile.providerAccountId,
+        email: profile.email,
+        emailVerified: profile.emailVerified,
+        lastLoginAt: now,
+        userId: user.id,
+      },
+    });
+
+    return user;
+  });
+}
+
+async function createUniqueUsername(tx: Prisma.TransactionClient, candidate: string): Promise<string> {
+  const base = normalizeUsername(candidate) || "player";
+
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const suffix = attempt === 0 ? "" : crypto.randomInt(10, 99999).toString();
+    const username = `${base}${suffix}`.slice(0, 24);
+    const existing = await tx.user.findUnique({
+      where: { username },
+      select: { id: true },
+    });
+    if (!existing) {
+      return username;
+    }
+  }
+
+  return `player${crypto.randomInt(100000, 999999)}`.slice(0, 24);
+}
+
+function normalizeDisplayName(value: string): string {
+  return value.trim().slice(0, 24) || "Player";
+}
+
+function buildAuthRedirect({
+  token,
+  error,
+}: {
+  token?: string;
+  error?: string;
+}): string {
+  const redirectUrl = new URL(config.clientOrigin);
+  const hash = new URLSearchParams();
+  if (token) {
+    hash.set("auth_token", token);
+    hash.set("auth_mode", "account");
+  }
+  if (error) {
+    hash.set("auth_error", error);
+  }
+  redirectUrl.hash = hash.toString();
+  return redirectUrl.toString();
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
 }

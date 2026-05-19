@@ -27,6 +27,8 @@ export interface BrixGameState {
   status: string;
   authMessage: string;
   authMode: AuthMode | null;
+  oidcEnabled: boolean;
+  oidcProviderName: string | null;
   displayName: string;
   snapshot: RoomSnapshot | null;
   localSlot: PlayerSlot | null;
@@ -40,6 +42,7 @@ export interface BrixGameState {
 export interface BrixGameActions {
   setDisplayName: (value: string) => void;
   authenticateAsGuest: () => Promise<void>;
+  startSingleSignOn: () => Promise<void>;
   authenticateWithPassword: (
     mode: AuthDialogMode,
     username: string,
@@ -70,6 +73,8 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
   const [status, setStatus] = useState("Offline");
   const [authMessage, setAuthMessage] = useState("Use an account for saved progress, or play as guest.");
   const [authMode, setAuthMode] = useState<AuthMode | null>(null);
+  const [oidcEnabled, setOidcEnabled] = useState(false);
+  const [oidcProviderName, setOidcProviderName] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState("Guest");
   const [snapshot, setSnapshot] = useState<RoomSnapshot | null>(null);
   const [localSlot, setLocalSlot] = useState<PlayerSlot | null>(null);
@@ -208,6 +213,11 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
     setSocialMessage("Friend features are available with an account.");
     disconnectSocket();
   }, [disconnectSocket, displayName, requestDemoToken]);
+
+  const startSingleSignOn = useCallback(async () => {
+    setAuthMessage("Redirecting to your identity provider...");
+    window.location.assign("/auth/oidc/start");
+  }, []);
 
   const authenticateWithPassword = useCallback(async (
     mode: AuthDialogMode,
@@ -387,6 +397,41 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
   }, [clearStoredAuth, disconnectSocket]);
 
   useEffect(() => {
+    void fetch("/auth/oidc/config")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body: { enabled?: boolean; providerName?: string | null } | null) => {
+        setOidcEnabled(Boolean(body?.enabled));
+        setOidcProviderName(body?.providerName ?? null);
+      })
+      .catch(() => {
+        setOidcEnabled(false);
+        setOidcProviderName(null);
+      });
+  }, []);
+
+  useEffect(() => {
+    const redirect = consumeAuthRedirect();
+    if (!redirect) {
+      return;
+    }
+
+    if (redirect.error) {
+      setAuthMessage(redirect.error);
+      setStatus("SSO unavailable");
+      return;
+    }
+
+    if (!redirect.token) {
+      return;
+    }
+
+    saveSession({ token: redirect.token, authMode: "account" });
+    setAuthMode("account");
+    setAuthMessage("Single sign-on complete.");
+    setStatus("Signed in");
+  }, []);
+
+  useEffect(() => {
     const session = loadSession();
     if (!session?.token) {
       return;
@@ -442,6 +487,8 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
     status,
     authMessage,
     authMode,
+    oidcEnabled,
+    oidcProviderName,
     displayName,
     snapshot,
     localSlot,
@@ -452,6 +499,7 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
     socialMessage,
     setDisplayName,
     authenticateAsGuest,
+    startSingleSignOn,
     authenticateWithPassword,
     requestPasswordReset,
     resetPassword,
@@ -545,6 +593,27 @@ function loadSession(): StoredSession | null {
   } catch {
     return null;
   }
+}
+
+function consumeAuthRedirect(): { token?: string; error?: string } | null {
+  const hash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+  if (!hash) {
+    return null;
+  }
+
+  const params = new URLSearchParams(hash);
+  const token = params.get("auth_token");
+  const error = params.get("auth_error");
+  if (!token && !error) {
+    return null;
+  }
+
+  const cleanUrl = `${window.location.pathname}${window.location.search}`;
+  window.history.replaceState(null, "", cleanUrl);
+  return {
+    token: token ?? undefined,
+    error: error ?? undefined,
+  };
 }
 
 function isAuthError(message: string): boolean {

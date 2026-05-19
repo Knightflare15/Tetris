@@ -74,33 +74,25 @@ export function App(): ReactElement {
 
       <section className="brix-layout" aria-label="Brix game board and match panels">
         <aside className="side-rail left-rail">
-          <section className="cellar-card welcome-card">
-            <p className="eyebrow">Cellar pass</p>
-            <h2>{game.authMode === "account" ? `Welcome, ${game.displayName}` : "Guest tasting"}</h2>
-            <p>{game.authMode === "account" ? "Your account session is active." : "Play now, then login or register when ready."}</p>
-            <div className="button-stack">
-              <button type="button" onClick={() => setAuthOpen(true)}>
-                {game.authMode === "account" ? "Manage Account" : "Login or Register"}
-              </button>
-              {game.authMode && (
-                <button className="secondary-button" type="button" onClick={game.signOut}>
-                  Sign Out
+          {game.authMode !== "account" && (
+            <section className="cellar-card welcome-card">
+              <p className="eyebrow">Cellar pass</p>
+              <h2>Guest tasting</h2>
+              <p>Play now, then login or register when ready.</p>
+              <div className="button-stack">
+                <button type="button" onClick={() => setAuthOpen(true)}>
+                  Login or Register
                 </button>
-              )}
-            </div>
-          </section>
+                {game.authMode === "guest" && (
+                  <button className="secondary-button" type="button" onClick={game.signOut}>
+                    Clear Guest Session
+                  </button>
+                )}
+              </div>
+            </section>
+          )}
 
-          <SocialHub
-            social={game.social}
-            message={game.socialMessage}
-            accountReady={game.authMode === "account"}
-            onAddFriend={game.addFriend}
-            onAccept={game.acceptFriendRequest}
-            onDecline={game.declineFriendRequest}
-            onJoinFriend={game.joinFriend}
-            onRefresh={game.refreshSocial}
-          />
-
+         
           <section className="cellar-card match-card">
             <p className="eyebrow">Current match</p>
             <StatRow label="Level" value={String(level)} />
@@ -110,6 +102,17 @@ export function App(): ReactElement {
             {lastClear && <StatRow label={lastClear.label} value={`+${lastClear.points}`} />}
             <WineGlass progress={progress} level={level} clearEffect={lastClear} />
           </section>
+
+           <SocialHub
+            social={game.social}
+            message={game.socialMessage}
+            accountReady={game.authMode === "account"}
+            onAddFriend={game.addFriend}
+            onAccept={game.acceptFriendRequest}
+            onDecline={game.declineFriendRequest}
+            onJoinFriend={game.joinFriend}
+            onRefresh={game.refreshSocial}
+          />
         </aside>
 
         <section className="board-column">
@@ -176,18 +179,29 @@ export function App(): ReactElement {
         <AuthModal
           authMessage={game.authMessage}
           authMode={game.authMode}
+          displayName={game.displayName}
+          oidcEnabled={game.oidcEnabled}
+          oidcProviderName={game.oidcProviderName}
           onClose={() => setAuthOpen(false)}
           onGuest={async () => {
             await game.authenticateAsGuest();
+          }}
+          onSingleSignOn={async () => {
+            await game.startSingleSignOn();
           }}
           onPassword={async (mode, username, password, email, otp) => {
             const ok = await game.authenticateWithPassword(mode, username, password, email, otp);
             if (ok) {
               setAuthOpen(false);
             }
+            return ok;
           }}
           onRequestReset={game.requestPasswordReset}
           onResetPassword={game.resetPassword}
+          onSignOut={() => {
+            game.signOut();
+            setAuthOpen(false);
+          }}
         />
       )}
     </main>
@@ -485,7 +499,7 @@ function SocialHub({
       <div className="card-heading-row">
         <p className="eyebrow">Friends</p>
         <button className="mini-button" type="button" onClick={() => void onRefresh()} disabled={!accountReady}>
-          Refresh
+          Ref
         </button>
       </div>
       <form
@@ -515,7 +529,10 @@ function SocialHub({
         <div className="request-list">
           {incoming.map((request) => (
             <div className="request-row" key={request.id}>
-              <span>{request.displayName}</span>
+              <div className="request-copy">
+                <strong>{request.displayName}</strong>
+                <span>@{request.username}</span>
+              </div>
               <button className="mini-button" type="button" onClick={() => void onAccept(request.id)}>
                 Accept
               </button>
@@ -532,7 +549,7 @@ function SocialHub({
         {friends.map((friend) => (
           <div className="friend-row" key={friend.userId}>
             <span className={`presence-dot ${friend.online ? "is-online" : ""}`} />
-            <div>
+            <div className="friend-copy">
               <strong>{friend.displayName}</strong>
               <span>{friend.online ? (friend.inGame ? "In game" : "Online") : "Offline"}</span>
             </div>
@@ -554,7 +571,7 @@ function SocialHub({
         {leaders.slice(0, 5).map((entry) => (
           <div className="leader-row" key={`${entry.userId}-${entry.createdAt}`}>
             <span>#{entry.rank}</span>
-            <strong>{entry.displayName}</strong>
+            <strong className="leader-name">{entry.displayName}</strong>
             <span>{entry.score.toLocaleString()}</span>
           </div>
         ))}
@@ -563,14 +580,32 @@ function SocialHub({
   );
 }
 
-function AuthModal({ authMessage, authMode, onClose, onGuest, onPassword, onRequestReset, onResetPassword }: {
+function AuthModal({
+  authMessage,
+  authMode,
+  displayName,
+  oidcEnabled,
+  oidcProviderName,
+  onClose,
+  onGuest,
+  onSingleSignOn,
+  onPassword,
+  onRequestReset,
+  onResetPassword,
+  onSignOut,
+}: {
   authMessage: string;
   authMode: "guest" | "account" | null;
+  displayName: string;
+  oidcEnabled: boolean;
+  oidcProviderName: string | null;
   onClose: () => void;
   onGuest: () => Promise<void>;
-  onPassword: (mode: "login" | "register", username: string, password: string, email: string, otp: string) => Promise<void>;
+  onSingleSignOn: () => Promise<void>;
+  onPassword: (mode: "login" | "register", username: string, password: string, email: string, otp: string) => Promise<boolean>;
   onRequestReset: (email: string) => Promise<boolean>;
   onResetPassword: (email: string, otp: string, password: string) => Promise<boolean>;
+  onSignOut: () => void;
 }): ReactElement {
   const [mode, setMode] = useState<"login" | "register" | "reset">("login");
   const [username, setUsername] = useState("");
@@ -608,8 +643,47 @@ function AuthModal({ authMessage, authMode, onClose, onGuest, onPassword, onRequ
           x
         </button>
         <p className="eyebrow">Brix cellar</p>
-        <h2 id="authTitle">{mode === "login" ? "Login" : mode === "register" ? "Create account" : "Reset password"}</h2>
+        <h2 id="authTitle">
+          {authMode === "account"
+            ? "Account"
+            : mode === "login"
+              ? "Login"
+              : mode === "register"
+                ? "Create account"
+                : "Reset password"}
+        </h2>
         <p>{authMessage}</p>
+
+        {authMode === "account" ? (
+          <>
+            <section className="account-summary">
+              <strong>{displayName}</strong>
+              <span>Session active. Matchmaking, friends, and progress are tied to this account.</span>
+            </section>
+            <button className="secondary-button" type="button" onClick={onSignOut}>
+              Sign Out
+            </button>
+          </>
+        ) : (
+          <>
+            {oidcEnabled && (
+              <>
+                <button
+                  className="sso-button"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setBusy(true);
+                    void onSingleSignOn();
+                  }}
+                >
+                  Continue with {oidcProviderName ?? "Single Sign-On"}
+                </button>
+                <div className="auth-divider" aria-hidden="true">
+                  <span>or</span>
+                </div>
+              </>
+            )}
 
         <div className="segmented-control" role="tablist" aria-label="Auth mode">
           <button className={mode === "login" ? "is-active" : ""} type="button" onClick={() => setMode("login")}>
@@ -692,6 +766,8 @@ function AuthModal({ authMessage, authMode, onClose, onGuest, onPassword, onRequ
         >
           {authMode === "guest" ? "Refresh Guest Session" : "Play as Guest"}
         </button>
+          </>
+        )}
       </section>
     </div>
   );

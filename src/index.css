@@ -305,8 +305,8 @@ canvas {
 
 .mini-button {
   min-width: 0;
-  padding: 6px 8px;
-  font-size: clamp(0.56rem, 1.2vw, 0.72rem);
+  padding: 2px 2px;
+  font-size: clamp(0.2rem, 1.2vw, 0.72rem);
 }
 
 .friend-form {
@@ -359,23 +359,16 @@ canvas {
   grid-template-columns: minmax(0, 1fr) auto auto;
 }
 
-.request-row span {
+.request-copy,
+.friend-copy {
+  display: grid;
   min-width: 0;
-  overflow: hidden;
-  color: #713246;
-  font-size: var(--small-copy);
-  font-weight: 900;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  gap: 2px;
 }
 
-.friend-row {
-  grid-template-columns: auto minmax(0, 1fr) auto;
-}
-
+.request-copy strong,
 .friend-row strong,
 .leader-row strong {
-  display: block;
   min-width: 0;
   overflow: hidden;
   color: #713246;
@@ -385,6 +378,18 @@ canvas {
   white-space: nowrap;
 }
 
+.request-copy strong {
+  display: block;
+  color: #713246;
+  font-size: var(--small-copy);
+  font-weight: 900;
+}
+
+.friend-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.request-copy span,
 .friend-row span:not(.presence-dot),
 .leader-row span {
   color: var(--muted);
@@ -1064,6 +1069,27 @@ canvas {
   line-height: 1.45;
 }
 
+.account-summary {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid rgba(188, 154, 119, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 250, 243, 0.7);
+}
+
+.account-summary strong {
+  color: #713246;
+  font-size: 1rem;
+}
+
+.account-summary span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
 .auth-modal input {
   margin-bottom: 12px;
 }
@@ -1084,6 +1110,34 @@ canvas {
   color: #8b4a60;
   background: rgba(255, 255, 255, 0.68);
   box-shadow: none;
+}
+
+.sso-button {
+  width: 100%;
+}
+
+.auth-divider {
+  position: relative;
+  display: grid;
+  place-items: center;
+  margin: 12px 0;
+}
+
+.auth-divider::before {
+  position: absolute;
+  inset: 50% 0 auto;
+  border-top: 1px solid rgba(188, 154, 119, 0.24);
+  content: "";
+}
+
+.auth-divider span {
+  position: relative;
+  padding: 0 8px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  background: var(--panel-strong);
 }
 
 .segmented-control {
@@ -1304,6 +1358,40 @@ canvas {
     display: none;
   }
 
+  .friend-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .friend-form .mini-button {
+    width: 50%;
+  }
+
+  .request-copy strong,
+  .request-copy span,
+  .friend-copy strong,
+  .friend-copy span,
+  .leader-name,
+  .leader-row span {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .request-row,
+  .friend-row {
+    align-items: start;
+  }
+
+  .friend-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .friend-row button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
   .cellar-card h2 {
     font-size: clamp(0.66rem, 2.7vw, 0.9rem);
   }
@@ -1412,10 +1500,18 @@ canvas {
     overflow-wrap: anywhere;
   }
 
+  .request-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .request-row .mini-button {
+    width: 100%;
+  }
+
   .button-stack button,
   .cellar-card button,
   .match-actions button {
-    padding: 6px 4px;
+    padding: 2px 2px;
   }
 
   .practice-speed-control span {
