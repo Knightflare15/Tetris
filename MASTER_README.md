@@ -1004,6 +1004,249 @@ Azure App Service cold starts and Azure SQL auto-pause can affect:
 
 The schema has refresh-token support, but the current user-facing flow is still mostly short-lived JWT centric rather than a fully built refresh-token rotation system.
 
+### Operational and Product Shortcomings
+
+These are not fatal flaws, but they are real boundaries of the current implementation.
+
+- The app still depends on in-memory state for rooms, presence, OTP workflows, and OIDC request state.
+- The backend is optimized for a single active instance rather than horizontally scaled realtime coordination.
+- Database availability can directly affect login and OIDC callback reliability, especially when Azure SQL is paused or waking up.
+- The social and auth systems are functional, but some production-grade features such as refresh-token rotation, account linking UX, and deeper admin diagnostics are not fully built out yet.
+- There is limited observability compared with a mature SaaS platform. Logging exists, but the project does not yet include full tracing, metrics dashboards, alerting, or application performance monitoring.
+- The current health endpoint confirms the app process is alive, but it is not a deep dependency-aware health check for services like the database or email provider.
+
+Professional way to describe this:
+
+> The current version is intentionally pragmatic. It is strong enough to demonstrate real architecture, auth, persistence, and debugging ability, but it has clear next steps before it would be considered production-grade at higher scale.
+
+---
+
+## 10.1 Future Upgrades for Scalability and Production Readiness
+
+This section is useful when an interviewer asks:
+
+- "How would you scale this?"
+- "What would you improve next?"
+- "What are the biggest production risks?"
+
+### 1. Externalize Ephemeral Shared State
+
+Current limitation:
+
+- room state, presence, OTP state, and OIDC request state live in memory inside one app process.
+
+Why it matters:
+
+- restart-sensitive;
+- instance-local;
+- not safe for multi-instance deployment.
+
+Upgrade path:
+
+- introduce Redis or another shared low-latency state layer;
+- move presence and reconnect metadata into shared storage;
+- store short-lived auth flow state outside the process when needed.
+
+Value:
+
+- supports multiple app instances;
+- improves resilience across restarts;
+- reduces fragility in auth and reconnect flows.
+
+### 2. Horizontal Scale for Matchmaking and Realtime Traffic
+
+Current limitation:
+
+- matchmaking and room ownership assume one instance coordinates everything.
+
+Upgrade path:
+
+- add a shared queue for matchmaking;
+- assign room ownership explicitly;
+- use a Socket.IO adapter backed by Redis when needed for multi-instance coordination.
+
+Value:
+
+- lets traffic scale beyond one app server;
+- avoids fragmented presence and queue state;
+- enables more reliable realtime behavior under load.
+
+### 3. Production-Grade Session Management
+
+Current limitation:
+
+- the app issues JWTs, but the refresh-token lifecycle is not fully implemented as a complete product feature.
+
+Upgrade path:
+
+- implement refresh-token issuance, rotation, revocation, and session invalidation;
+- add clearer device/session management if desired;
+- define explicit session-expiration policy.
+
+Value:
+
+- stronger security posture;
+- more realistic SaaS auth behavior;
+- better control over long-lived sessions.
+
+### 4. Stronger Observability
+
+Current limitation:
+
+- logs are useful, but monitoring is still fairly manual.
+
+Upgrade path:
+
+- add metrics and dashboards;
+- integrate application monitoring such as Azure Application Insights;
+- track auth failures, websocket disconnects, queue times, room counts, and DB latency;
+- add correlation IDs for request and socket workflows.
+
+Value:
+
+- faster debugging;
+- better incident response;
+- stronger support engineering story.
+
+### 5. Deep Health and Readiness Checks
+
+Current limitation:
+
+- `/health` is a lightweight liveness endpoint only.
+
+Upgrade path:
+
+- add dependency-aware checks such as database reachability;
+- separate liveness from readiness;
+- optionally add internal debug endpoints protected by environment flags.
+
+Value:
+
+- safer deployments;
+- easier cold-start diagnosis;
+- clearer production triage.
+
+### 6. More Durable Auth Workflows
+
+Current limitation:
+
+- pending registration and password reset flows are memory-backed.
+
+Upgrade path:
+
+- move pending OTP/session artifacts to the database or a shared cache;
+- add expiry cleanup jobs or TTL-based storage;
+- optionally add resend limits, retry controls, and abuse protections.
+
+Value:
+
+- more reliable auth experience;
+- safer restarts;
+- better operational robustness.
+
+### 7. Better Failure Handling Around Cloud Dependencies
+
+Current limitation:
+
+- OIDC and account flows can be affected by Azure SQL wake-up delays.
+
+Upgrade path:
+
+- add graceful retries where appropriate;
+- improve user-facing error messages;
+- surface "database waking up" style feedback instead of generic failure;
+- tune Azure SQL and App Service configuration for lower cold-start friction.
+
+Value:
+
+- smoother login experience;
+- clearer support narratives;
+- fewer false-negative auth failures.
+
+### 8. Stronger Social and Product Features
+
+Current limitation:
+
+- the current social layer covers friends, requests, presence, and leaderboards, but it is still lightweight.
+
+Upgrade path:
+
+- invite-to-room workflow;
+- block/report controls if needed;
+- richer recent teammate history;
+- more direct social notifications;
+- friend activity or presence details with privacy controls.
+
+Value:
+
+- better product depth;
+- more realistic user-state workflows;
+- stronger persistent multiplayer story.
+
+### 9. More Formal Security Hardening
+
+Current limitation:
+
+- the app follows several good practices, but there is room for more formal hardening.
+
+Upgrade path:
+
+- stricter secret rotation discipline;
+- more explicit rate limiting on auth flows;
+- stronger auditing around login and account events;
+- role-based admin/debug access if support tools are added;
+- review of token lifetime and credential exposure boundaries.
+
+Value:
+
+- stronger operational security;
+- more production-ready posture;
+- better answers in security-conscious interviews.
+
+### 10. Expanded Test Coverage
+
+Current limitation:
+
+- core deterministic logic is tested well, but broader integration behavior is less deeply automated.
+
+Upgrade path:
+
+- add route-level integration tests for auth and social flows;
+- add OIDC callback-path tests with mocked providers;
+- add reconnect and room-lifecycle edge-case tests;
+- add deployment-smoke or startup verification checks.
+
+Value:
+
+- safer refactors;
+- better regression protection;
+- stronger confidence when changing auth or realtime behavior.
+
+### 11. Better Frontend Resilience and UX Polish
+
+Current limitation:
+
+- the UI is functional and improved for mobile, but some flows still assume technical familiarity during failure cases.
+
+Upgrade path:
+
+- clearer user messaging around auth failures;
+- explicit loading states for login and DB wake-up moments;
+- better surfaced connection status and reconnect guidance;
+- more polished responsive behavior in dense side-panel layouts.
+
+Value:
+
+- improved usability;
+- fewer confusing support cases;
+- stronger end-user experience.
+
+### How To Summarize Future Work Professionally
+
+Good short version:
+
+> The next phase would focus on turning a strong single-instance prototype into a more production-ready distributed service: externalizing ephemeral state, improving observability, hardening session management, and making auth and realtime flows more resilient under cloud deployment conditions.
+
 ---
 
 ## 11. Troubleshooting Stories You Should Know
