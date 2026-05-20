@@ -155,10 +155,10 @@ Used for:
 
 Important ideas:
 
-- component-driven UI;
-- hooks such as `useState`, `useEffect`, `useMemo`, `useRef`, `useCallback`;
-- derived state vs source of truth;
-- client-side lifecycle.
+- Component-driven UI means the screen is built from reusable pieces, each responsible for a narrow part of rendering and interaction.
+- Hooks such as `useState`, `useEffect`, `useMemo`, `useRef`, and `useCallback` let function components manage state, side effects, memoized values, references, and stable callbacks.
+- Derived state vs source of truth means you should store only the minimal real state and compute the rest when possible, instead of duplicating values and risking inconsistency.
+- Client-side lifecycle means components mount, update, and unmount over time, and React code has to manage subscriptions, timers, socket listeners, and cleanup correctly.
 
 What to understand:
 
@@ -207,10 +207,10 @@ Used for:
 
 Important ideas:
 
-- interfaces and type aliases;
-- discriminated state shapes;
-- narrowing;
-- compile-time guarantees vs runtime validation.
+- Interfaces and type aliases let the project define stable contracts for payloads, room state, auth users, and shared structures across frontend and backend code.
+- Discriminated or clearly separated state shapes make it easier to represent different modes such as guest vs account, or room vs non-room state, without ambiguous data.
+- Narrowing is important because many values start as `unknown`, optional, or union-like, and the code must prove what they are before using them safely.
+- Compile-time guarantees help prevent many classes of mistakes during development, but runtime validation is still required for request bodies, env vars, database responses, and third-party callbacks.
 
 What to understand:
 
@@ -230,10 +230,10 @@ Used for:
 
 Important ideas:
 
-- request/response lifecycle;
-- middleware;
-- JSON body parsing;
-- route composition.
+- The request/response lifecycle is the path an HTTP request takes through middleware, route handling, success responses, and error paths.
+- Middleware is shared logic that runs before or around route handlers, which is useful for parsing, logging, CORS, auth checks, and other cross-cutting concerns.
+- JSON body parsing matters because most auth and social endpoints accept structured request bodies, and the server must decode those safely before using them.
+- Route composition means different endpoints are organized by responsibility, such as auth, social features, health checks, and static asset delivery.
 
 Related prep:
 
@@ -267,11 +267,11 @@ Used for:
 
 Important ideas:
 
-- websocket-based bidirectional communication;
-- socket rooms;
-- connection vs message events;
-- transport abstraction;
-- reconnection behavior.
+- Websocket-based bidirectional communication means the client and server can both send events after one long-lived connection is established, which is ideal for multiplayer state updates.
+- Socket rooms are logical groupings of connections, which makes it easy to broadcast one match's snapshots only to the players in that match.
+- Connection events and message events are different concerns: one is about establishing or losing the channel, while the other is about gameplay, presence, latency, or reconnect messages sent across that channel.
+- Transport abstraction means Socket.IO provides a friendlier event model than working directly with raw WebSocket primitives, while still aiming to use WebSocket when available.
+- Reconnection behavior matters because realtime apps have to handle flaky networks, stale sockets, and users temporarily dropping and rejoining.
 
 What to understand:
 
@@ -323,10 +323,10 @@ Used for:
 
 Important ideas:
 
-- persistent connection;
-- server push;
-- low-latency state distribution;
-- disconnect and reconnect handling.
+- A persistent connection avoids repeated request setup overhead and lets the app keep one live channel open for ongoing state exchange.
+- Server push means the backend can immediately send snapshots or events when state changes, instead of waiting for the browser to ask.
+- Low-latency state distribution is one of the main reasons realtime transport is used here, because two-player game state needs to stay visually consistent.
+- Disconnect and reconnect handling are essential because realtime correctness is not only about fast updates, but also about surviving unstable connectivity.
 
 What to understand:
 
@@ -370,10 +370,10 @@ The game runs on a fixed tick loop, not arbitrary frame timing.
 
 Important ideas:
 
-- `TICK_RATE` and `TICK_MS`;
-- inputs are queued and processed in order;
-- gravity occurs on predictable tick intervals;
-- simulation order stays deterministic.
+- `TICK_RATE` and `TICK_MS` define the cadence of the simulation, so the game advances in predictable discrete steps instead of arbitrary frame timing.
+- Inputs are queued and processed in a deliberate order so simultaneous actions can be resolved consistently rather than depending on browser timing luck.
+- Gravity occurs on predictable tick intervals, which makes falling behavior reproducible and easier to reason about in multiplayer.
+- Deterministic simulation order is valuable because it makes tests, debugging, and fairness much easier than ad hoc frame-driven logic.
 
 What to understand:
 
@@ -443,10 +443,10 @@ Used for:
 
 Important ideas:
 
-- signed tokens;
-- claims such as `sub` and `displayName`;
-- token verification;
-- expiry.
+- Signed tokens matter because the application trusts the token only after verifying that it was issued by the expected server secret and has not been tampered with.
+- Claims such as `sub` and `displayName` are pieces of identity data inside the token payload and are used to reconstruct who the user is for app logic.
+- Token verification is the step that turns an untrusted bearer string into a trusted authenticated identity.
+- Expiry limits how long a stolen or stale token remains useful, even though expiry alone does not solve revocation or session-management concerns.
 
 Important nuance:
 
@@ -477,13 +477,13 @@ The project now includes OIDC logic for Google-style SSO.
 
 Important ideas:
 
-- OAuth 2.0 is an authorization framework;
-- OpenID Connect adds identity on top of OAuth 2.0;
-- `openid profile email` scopes are used for identity data;
-- authorization code flow with PKCE is used;
-- callback handling exchanges code for tokens;
-- backend validates the ID token;
-- user is linked by provider subject and email.
+- OAuth 2.0 is fundamentally about delegated authorization, meaning a client can get tokens to access protected resources.
+- OpenID Connect adds a standardized identity layer on top of OAuth 2.0, which is why it is the correct mental model for "Sign in with Google" style flows.
+- The scopes `openid profile email` tell the provider that the app is requesting identity-oriented claims rather than just generic API access.
+- The authorization code flow with PKCE is used because it is a modern and safer way to complete browser-based or app-assisted sign-in.
+- The callback step exchanges the temporary authorization code for provider-issued tokens, which is where configuration mistakes or dependency failures often show up.
+- The backend validates the ID token before trusting any identity claims from the provider.
+- The local app then links the external provider identity to a durable local user using provider subject and email information.
 
 You should know these terms:
 
@@ -531,11 +531,11 @@ The project supports:
 
 Important ideas:
 
-- pending registrations in memory;
-- OTP generation;
-- hashing OTP before comparison;
-- email delivery abstraction;
-- fallback logging when email service is not configured.
+- Pending registrations live in memory in the current version, which is simple but means restarts can interrupt unfinished auth flows.
+- OTP generation provides a short-lived second proof step for registration and password reset flows.
+- Hashing OTPs before comparison is better than storing or comparing raw codes carelessly, because temporary secrets should still be handled defensively.
+- Email delivery abstraction keeps transport concerns separate from auth workflow logic, which is cleaner and easier to swap or test.
+- Fallback logging exists so local development can still exercise the OTP flow even when a real email provider is not configured.
 
 What to understand:
 
@@ -562,11 +562,11 @@ Used for:
 
 Important ideas:
 
-- schema-first modeling;
-- generated client;
-- `migrate dev` vs `migrate deploy`;
-- baselining existing databases;
-- production-safe migrations.
+- Schema-first modeling means the database structure is explicitly described and versioned instead of being allowed to drift informally.
+- The generated Prisma client gives typed access to queries and relations, which reduces a lot of hand-written ORM uncertainty.
+- `migrate dev` and `migrate deploy` serve different purposes: one is for creating and iterating locally, and the other is for applying committed migrations safely in deployed environments.
+- Baselining existing databases is important when real tables already exist before migration history is fully tracked by Prisma.
+- Production-safe migrations are not just about SQL syntax; they are about disciplined rollout, history tracking, and avoiding accidental schema drift.
 
 What to understand:
 
@@ -590,13 +590,13 @@ The database stores durable product data such as:
 
 Important ideas:
 
-- relational schema;
-- uniqueness constraints;
-- foreign keys;
-- indexes;
-- cloud DB connectivity;
-- firewall and public access settings;
-- auto-pause / cold-start behavior.
+- A relational schema is useful here because users, matches, friendships, requests, and scores all have clear structured relationships.
+- Uniqueness constraints protect correctness, for example preventing duplicate usernames or duplicate provider-account links.
+- Foreign keys enforce real relationships between tables so linked data cannot drift too easily into invalid states.
+- Indexes improve read performance for common lookup and sort patterns such as friend queries, user lookups, and leaderboard reads.
+- Cloud DB connectivity introduces practical issues like connection strings, SSL settings, and runtime reachability that do not appear in simple local demos.
+- Firewall and public access settings are common operational causes of "works locally, fails in Azure" style bugs.
+- Auto-pause and cold-start behavior matter because they can make auth or persistence flows appear flaky even when the application logic is correct.
 
 Related prep:
 
@@ -628,10 +628,10 @@ The project includes:
 
 Important ideas:
 
-- online presence is tracked in memory;
-- durable friend relationships live in the database;
-- sockets are mapped to users for presence updates;
-- presence and DB persistence are different concerns.
+- Online presence is tracked in memory because it reflects who is connected right now, not a durable historical fact.
+- Durable friend relationships live in the database because that state should survive restarts and be shared consistently over time.
+- Sockets are mapped to users so presence, friend notifications, and join availability can be tied to the authenticated person rather than just a connection ID.
+- Presence and database persistence are different concerns, and good debugging depends on keeping that distinction clear.
 
 What to understand:
 
@@ -650,11 +650,11 @@ Used for:
 
 Important ideas:
 
-- in-memory room registry;
-- room-to-socket mapping;
-- disconnect grace period;
-- room cleanup;
-- room snapshots.
+- The in-memory room registry is the active source of truth for running matches on this single backend instance.
+- Room-to-socket mapping tells the backend which connection currently owns which player slot in which room.
+- The disconnect grace period exists so temporary network drops do not immediately destroy a match.
+- Room cleanup is necessary to stop abandoned rooms from consuming memory and CPU forever.
+- Room snapshots are the server-produced public view of the current room state that gets sent to clients for rendering.
 
 The split is important:
 
@@ -667,9 +667,9 @@ There is a bot mode for practice.
 
 Important ideas:
 
-- heuristic bot behavior;
-- bot runtime state;
-- deterministic action scheduling inside the same tick system.
+- Heuristic bot behavior means the practice bot uses programmed rules and decision logic rather than machine learning.
+- Bot runtime state tracks what the bot has already done and what decision context it is operating under.
+- The bot acts inside the same deterministic tick system as human input, which keeps simulation rules consistent.
 
 What to understand:
 
@@ -694,10 +694,10 @@ The project uses an email service abstraction for OTP flows.
 
 Important ideas:
 
-- transactional email integration;
-- provider abstraction;
-- fallback behavior for local development;
-- keeping auth logic separate from transport logic.
+- Transactional email integration means the app can send one-off workflow messages such as OTP codes rather than building a full messaging system.
+- Provider abstraction means the core auth flow does not need to know every detail of the current email vendor.
+- Fallback behavior for local development keeps the feature testable even before production email infrastructure is in place.
+- Separating auth logic from transport logic keeps the system easier to reason about, test, and replace.
 
 What to understand:
 
@@ -716,10 +716,10 @@ CORS matters because frontend and backend may run on different origins in dev.
 
 Important ideas:
 
-- browser origin rules;
-- `CLIENT_ORIGIN`;
-- credential and access-control behavior;
-- why dev and prod often differ.
+- Browser origin rules determine when the browser treats two endpoints as cross-origin and therefore applies CORS restrictions.
+- `CLIENT_ORIGIN` exists because the server needs to know which browser origin is allowed to talk to it in development or deployed setups.
+- Credential and access-control behavior matter because the browser treats headers, origins, and permission rules differently from a simple server-to-server call.
+- Development and production often differ because local frontend and backend commonly run on different ports, while production may serve everything from one origin.
 
 Related prep:
 
@@ -745,9 +745,9 @@ Used tools:
 
 Important ideas:
 
-- separate client/server builds;
-- dev proxying to backend;
-- static production build served from Express.
+- Separate client and server builds exist because browser code and Node server code have different runtime targets and tooling needs.
+- Dev proxying to the backend makes local development easier by letting the frontend dev server forward API and socket traffic without hardcoding production behavior.
+- Serving the static production build from Express keeps deployment simpler because one backend can host both the API and the built frontend.
 
 What to understand:
 
@@ -766,9 +766,9 @@ Current value:
 
 Important ideas:
 
-- unit tests;
-- deterministic assertions;
-- testing state transitions, not just rendered UI.
+- Unit tests are focused checks on isolated logic, which is especially valuable for engine rules and deterministic simulation functions.
+- Deterministic assertions are strong because the expected result should not randomly change between runs.
+- Testing state transitions rather than only rendered UI is important here because gameplay correctness lives in simulation rules, not just appearance.
 
 Related prep:
 
@@ -787,12 +787,12 @@ The app is deployable as a Node app on Azure App Service.
 
 Important ideas:
 
-- environment-based config;
-- production build output;
-- single-host app serving both API and client;
-- health endpoint;
-- websocket support requirements;
-- app restarts and warmup issues.
+- Environment-based config lets the same code run in local development, Azure, or other environments without hardcoded infrastructure settings.
+- Production build output matters because the deployed app serves compiled assets rather than raw development tooling.
+- A single-host app serving both API and client reduces deployment complexity and avoids some cross-origin headaches in production.
+- A health endpoint provides a simple signal that the process is alive, though it is not the same as full dependency readiness.
+- Websocket support requirements matter because realtime behavior can fail even when ordinary HTTP routes still work.
+- App restarts and warmup issues matter because cloud platforms can recycle processes or wake cold services at inconvenient times.
 
 Related prep:
 
@@ -812,10 +812,10 @@ The repo includes a Dockerfile and deployment notes.
 
 Important ideas:
 
-- packaging frontend and backend together;
-- consistent runtime environments;
-- environment-variable-driven deployment;
-- single-service hosting for API and static client delivery.
+- Packaging frontend and backend together can simplify deployment when one Node-based service is enough to host the whole app surface.
+- Consistent runtime environments are one of the main advantages of containerized deployment, because fewer machine differences leak into behavior.
+- Environment-variable-driven deployment is important because the same container should behave differently depending on where it runs.
+- Single-service hosting works well for this project because the frontend and backend are tightly related and do not require separate infrastructure yet.
 
 What to understand:
 
@@ -828,10 +828,10 @@ The project separates runtime configuration from application logic.
 
 Important ideas:
 
-- environment-based config;
-- explicit production requirements;
-- derived config such as the public OIDC callback base URL;
-- avoiding hardcoded infrastructure secrets in source.
+- Environment-based config keeps runtime-specific details out of business logic and source-controlled code paths.
+- Explicit production requirements are important so the app fails loudly when critical secrets or settings are missing.
+- Derived config such as the public OIDC callback base URL must be correct because identity providers are strict about exact URLs.
+- Avoiding hardcoded infrastructure secrets in source is a core professional practice, both for security and for operational clarity.
 
 Related prep:
 
