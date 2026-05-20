@@ -160,11 +160,41 @@ Important ideas:
 - derived state vs source of truth;
 - client-side lifecycle.
 
+What to understand:
+
+- React components describe UI as a function of state.
+- Hooks let function components manage state, lifecycle, memoization, and references without class components.
+- Derived state means values that can be computed from other state should usually be computed, not redundantly stored.
+- In this app, React is mainly the presentation and orchestration layer, not the authoritative gameplay engine.
+
 Cross-question you may get:
 
 - Why use `useRef` for sockets or animation state?
 - Why not keep the whole game simulation in React state?
 - Why separate `useBrixGame` from `App.tsx`?
+
+Strong answers:
+
+#### Why use `useRef` for sockets or animation state?
+
+- `useRef` is useful for mutable values that should survive renders without causing a re-render when they change.
+- A socket instance, timer ID, animation frame ID, or last processed effect ID is usually an implementation detail rather than UI state.
+- If I stored those in normal React state, I would trigger unnecessary re-renders and make the component logic noisier.
+- In this project, refs are a good fit for things like socket lifecycle details, animation handles, and values used for synchronization rather than display.
+
+#### Why not keep the whole game simulation in React state?
+
+- React state is great for UI state, but not for authoritative realtime simulation.
+- The source of truth for gameplay lives on the server, not in the client render tree.
+- If the browser tried to own full simulation state locally, it would be easier for the game to drift from server truth and harder to reason about multiplayer correctness.
+- The frontend should mainly render snapshots and send intent, not own the real shared board state.
+
+#### Why separate `useBrixGame` from `App.tsx`?
+
+- `App.tsx` is mainly the UI composition layer.
+- `useBrixGame` acts as the orchestration layer for browser-side logic such as auth state, socket lifecycle, social refreshes, reconnect behavior, and gameplay actions.
+- Separating them keeps the component tree more readable, improves maintainability, and makes the logic easier to reason about or test in isolation.
+- It is also a cleaner way to avoid turning one large component into a mix of rendering concerns and transport/session concerns.
 
 ### 4.2 TypeScript
 
@@ -181,6 +211,12 @@ Important ideas:
 - discriminated state shapes;
 - narrowing;
 - compile-time guarantees vs runtime validation.
+
+What to understand:
+
+- TypeScript helps describe data contracts clearly across frontend, backend, and database usage.
+- Type narrowing matters when dealing with unknown request data, optional fields, and union-like states.
+- Compile-time safety is powerful, but it does not replace runtime checks for external input like HTTP bodies, env vars, or provider callbacks.
 
 ### 4.3 Express
 
@@ -206,6 +242,18 @@ Related prep:
 - request headers vs body vs query params
 - idempotency basics
 
+What to understand:
+
+- A request enters middleware, reaches a route handler, and eventually produces a response or an error path.
+- Middleware is useful for shared behavior like parsing, auth checks, logging, and CORS.
+- Route shape matters because this project uses REST-style endpoints for auth and social workflows.
+
+Why the related prep matters:
+
+- HTTP methods signal intent: fetch, create, update, or delete.
+- Status codes are a fast way to separate bad input, auth failure, conflicts, and server-side problems.
+- Headers, query params, and JSON bodies play different roles, and interviewers often test whether you know that boundary clearly.
+
 ### 4.4 Socket.IO
 
 Used for:
@@ -225,11 +273,45 @@ Important ideas:
 - transport abstraction;
 - reconnection behavior.
 
+What to understand:
+
+- Socket.IO gives a persistent event-driven channel after the initial connection is established.
+- Rooms are logical broadcast groups, which is exactly what a multiplayer match needs.
+- Connection lifecycle and message lifecycle are different; one bug may happen during handshake, another after gameplay has already started.
+
 Cross-question:
 
 - Why Socket.IO instead of raw WebSocket?
 - How are users authenticated over the socket?
 - What happens when the socket disconnects?
+
+Strong answers:
+
+#### Why Socket.IO instead of raw WebSocket?
+
+- Raw WebSocket is lower-level and gives more control, but Socket.IO provides a lot of useful application-level features out of the box.
+- In this project I benefit from:
+  - rooms
+  - middleware
+  - reconnection behavior
+  - named events
+  - simpler ergonomics for a small full-stack app
+- For a project at this scale, that tradeoff is worth it because it speeds up delivery and makes the realtime layer easier to maintain.
+
+#### How are users authenticated over the socket?
+
+- The client sends the app JWT in `socket.handshake.auth.token` when opening the Socket.IO connection.
+- The middleware in [src/server/socketGateway.ts](C:/Users/Aryan/Tetris/src/server/socketGateway.ts) verifies the token before the connection is accepted.
+- If verification succeeds, the server attaches the authenticated user to `socket.data`.
+- If it fails, the socket connection is rejected.
+
+#### What happens when the socket disconnects?
+
+- The server removes the player from the matchmaking queue if needed.
+- It marks the player disconnected in room state.
+- It removes the socket from online presence tracking.
+- If the player was in a room, reconnect is still possible during the disconnect grace window using the reconnect token and room ID.
+- If nobody reconnects and the room becomes empty, the room is eventually cleaned up.
 
 ### 4.5 WebSockets / Realtime Systems
 
@@ -245,6 +327,11 @@ Important ideas:
 - server push;
 - low-latency state distribution;
 - disconnect and reconnect handling.
+
+What to understand:
+
+- Realtime systems are valuable when the server must push updates quickly instead of waiting for the client to poll.
+- They introduce lifecycle complexity: partial disconnects, reconnect windows, stale sockets, and sequence ordering issues.
 
 ### 4.6 Server-Authoritative Game Design
 
@@ -287,6 +374,12 @@ Important ideas:
 - inputs are queued and processed in order;
 - gravity occurs on predictable tick intervals;
 - simulation order stays deterministic.
+
+What to understand:
+
+- A fixed timestep simplifies reasoning because the game advances in predictable increments.
+- Inputs are resolved against a timeline, not arbitrary render timing.
+- This is one reason the engine is easier to test and explain than frame-driven ad hoc logic.
 
 Why it matters:
 
@@ -368,6 +461,16 @@ Related prep:
 - session cookies vs JWT-based bearer auth
 - expiration and token invalidation tradeoffs
 
+What to understand:
+
+- A JWT is trusted only because the server verifies the signature with the expected secret or key material.
+- Claims are just data until verified; an unverified token should not be trusted.
+- Expiry improves safety, but expiration alone is not the same as revocation or session management.
+
+Why the related prep matters:
+
+- Many interviewers blur session concepts together, so it helps to clearly distinguish cookies, bearer tokens, refresh tokens, expiration, revocation, and rotation.
+
 ### 4.12 OAuth 2.0 and OpenID Connect
 
 The project now includes OIDC logic for Google-style SSO.
@@ -403,6 +506,12 @@ You should also know the differences between:
 - OpenID Connect vs SAML
 - provider token vs local app session token
 
+What to understand:
+
+- OAuth by itself does not fully answer "who is the user?"; OIDC does.
+- The authorization code flow with PKCE is widely used because it is much safer than simplistic implicit-style flows.
+- Provider tokens and local app sessions solve different problems: one proves external identity, the other represents the application's own authenticated session.
+
 ### 4.13 Password Hashing
 
 Used for local account login.
@@ -428,6 +537,12 @@ Important ideas:
 - email delivery abstraction;
 - fallback logging when email service is not configured.
 
+What to understand:
+
+- OTPs are temporary secrets and should not be stored or compared carelessly.
+- Hashing the OTP before comparison is safer than keeping the raw code around.
+- The email provider is an implementation detail; the auth flow should not be tightly coupled to one transport.
+
 Current limitation:
 
 - OTP state is in memory, so server restarts lose pending OTPs.
@@ -452,6 +567,13 @@ Important ideas:
 - `migrate dev` vs `migrate deploy`;
 - baselining existing databases;
 - production-safe migrations.
+
+What to understand:
+
+- Prisma is not just a query convenience layer; it also shapes how schema evolution is managed.
+- `migrate dev` is for creating and iterating on migrations locally.
+- `migrate deploy` is for safely applying already-created migrations in deployed environments.
+- Baselining matters when a real database exists before Prisma migration history was introduced.
 
 ### 4.16 SQL Server / Azure SQL
 
@@ -484,6 +606,16 @@ Related prep:
 - transactions and why they matter
 - normalization at a practical level
 
+What to understand:
+
+- SQL Server gives durable relational storage, which is useful for identity, social graph, scores, and history.
+- Constraints are part of correctness, not just performance.
+- Cloud SQL adds operational concerns that local development does not have, such as firewall rules, connection strings, and auto-pause behavior.
+
+Why the related prep matters:
+
+- Interviewers often ask simple relational questions to test whether you can reason about data, not just write ORM code.
+
 ### 4.17 Social Graph / Presence
 
 The project includes:
@@ -500,6 +632,12 @@ Important ideas:
 - durable friend relationships live in the database;
 - sockets are mapped to users for presence updates;
 - presence and DB persistence are different concerns.
+
+What to understand:
+
+- "Online now" is ephemeral realtime state.
+- "Is this person my friend?" is durable product state.
+- Mixing those two mentally leads to debugging mistakes, so the separation matters.
 
 ### 4.18 Matchmaking and Room Lifecycle
 
@@ -533,6 +671,11 @@ Important ideas:
 - bot runtime state;
 - deterministic action scheduling inside the same tick system.
 
+What to understand:
+
+- The practice bot is not ML-based; it is a rules-driven participant living inside the same simulation rules as a human-controlled player.
+- That makes it useful for gameplay practice and also for exercising engine paths consistently.
+
 This is not a machine-learning bot. It is rules/heuristics driven.
 
 ### 4.20 Logging
@@ -555,6 +698,11 @@ Important ideas:
 - provider abstraction;
 - fallback behavior for local development;
 - keeping auth logic separate from transport logic.
+
+What to understand:
+
+- Auth workflows should define when email must be sent; email-service code should define how it gets sent.
+- This separation makes local development easier and keeps the business logic cleaner.
 
 In this repo:
 
@@ -580,6 +728,12 @@ Related prep:
 - preflight requests
 - why backend tools like Postman do not behave the same way as browsers
 
+What to understand:
+
+- CORS is enforced by browsers, not by backend runtimes in the same way.
+- Two URLs that look similar can still be different origins if scheme, host, or port differ.
+- This matters a lot in local development where frontend and backend may run on different ports.
+
 ### 4.23 Build Tooling
 
 Used tools:
@@ -594,6 +748,11 @@ Important ideas:
 - separate client/server builds;
 - dev proxying to backend;
 - static production build served from Express.
+
+What to understand:
+
+- The frontend and backend have different runtime needs, so they are built differently.
+- The dev server makes local iteration easier, while the production backend serves a built client from static assets.
 
 ### 4.24 Testing
 
@@ -617,6 +776,11 @@ Related prep:
 - why deterministic systems are easier to test
 - what makes a test flaky
 
+What to understand:
+
+- The strongest tests in this project target authoritative logic where correctness matters most.
+- When behavior is deterministic, test failures usually point to real logic regressions rather than timing noise.
+
 ### 4.25 Azure App Service Deployment
 
 The app is deployable as a Node app on Azure App Service.
@@ -637,6 +801,11 @@ Related prep:
 - app restart vs redeploy vs recycle
 - config-in-env vs config-in-code
 
+What to understand:
+
+- Azure deployment is not just "upload code"; it includes configuration, startup behavior, process lifetime, and dependency reachability.
+- A health endpoint answers whether the process is alive, but not always whether all dependencies are ready.
+
 ### 4.26 Docker and Container Thinking
 
 The repo includes a Dockerfile and deployment notes.
@@ -647,6 +816,11 @@ Important ideas:
 - consistent runtime environments;
 - environment-variable-driven deployment;
 - single-service hosting for API and static client delivery.
+
+What to understand:
+
+- Containers help reduce "works on my machine" differences by packaging the runtime more predictably.
+- For a project like this, one container can be a practical way to deploy the whole app surface together.
 
 ### 4.27 Config and Runtime Boundaries
 
@@ -664,6 +838,12 @@ Related prep:
 - secrets management basics
 - why rotating exposed credentials matters
 - principle of least exposure for infrastructure config
+
+What to understand:
+
+- Runtime configuration should describe the environment, not be buried inside source code.
+- Secrets should be injected securely and rotated if exposed.
+- This project already demonstrated why that matters when the hardcoded DB fallback had to be removed.
 
 ---
 
@@ -1249,7 +1429,378 @@ Good short version:
 
 ---
 
-## 11. Troubleshooting Stories You Should Know
+## 11. Debugging Scenarios and How To Investigate Them
+
+This section is specifically for scenario-based interview questions.
+
+Use it in three ways:
+
+1. `What did happen`:
+   real issues that actually came up in this project.
+2. `What could have happened`:
+   realistic bugs for this architecture, even if they did not happen in your actual run.
+3. `Common bugs to debug`:
+   problems interviewers often ask about even if they have no direct tie to your project.
+
+### 11.1 General Debugging Framework
+
+A strong debugging answer usually follows this shape:
+
+1. Clarify the symptom
+- what exactly is failing?
+- who is affected?
+- local only, production only, mobile only, or everyone?
+
+2. Narrow the layer
+- frontend UI?
+- REST API?
+- websocket/realtime?
+- auth?
+- database?
+- deployment/config?
+
+3. Gather signals
+- browser console
+- network tab
+- backend logs
+- status codes
+- recent deploy/config changes
+- dependency health
+
+4. Form hypotheses
+- token expired
+- bad env var
+- DB unavailable
+- stale socket
+- redirect mismatch
+- race condition
+- bad migration state
+
+5. Verify one layer at a time
+- do not guess randomly
+- isolate the failing boundary first
+
+6. Fix and prevent
+- patch the immediate issue
+- then add a log, test, runbook, metric, or UX improvement if appropriate
+
+Professional phrasing:
+
+> My debugging approach is to identify the failing layer first, verify assumptions with logs and observable signals, and then narrow to the smallest reproducible cause before changing anything.
+
+### 11.2 What Did Happen in This Project
+
+These are real issues from this project that you can discuss confidently.
+
+#### A. Prisma migration failed against the Azure database
+
+Symptom:
+
+- migration commands failed because the production database already contained tables.
+
+Root cause:
+
+- the database existed before Prisma migration history was baselined there.
+
+How to debug it:
+
+- check exact Prisma error code
+- distinguish "schema is wrong" from "migration history is missing"
+- inspect whether the DB already has tables
+- confirm the initial migration was not yet marked as applied
+
+Resolution:
+
+- baseline the existing DB with `prisma migrate resolve --applied ...`
+- then run `prisma migrate deploy`
+
+Prevention:
+
+- document baseline procedure
+- treat production-like databases differently from fresh local DBs
+
+#### B. Google login succeeded but app still reported SSO failure
+
+Symptom:
+
+- Google auth appeared to work, but the app still failed after the callback.
+
+Root cause:
+
+- provider auth succeeded, but local app login still depended on database access;
+- Azure SQL auto-pause or wake-up delay interfered with the callback's user-linking step.
+
+How to debug it:
+
+- confirm that the browser reached Google successfully
+- inspect callback logs in the backend
+- verify DB availability at callback time
+- separate "provider login success" from "app session creation success"
+
+Resolution:
+
+- retry after warming the app/DB
+- confirm OIDC env configuration was correct
+
+Prevention:
+
+- improve retry behavior and user-facing messaging
+- reduce cold-start/auto-pause friction where possible
+
+#### C. Redirect URI mismatch in Google auth
+
+Symptom:
+
+- Google returned an invalid redirect request.
+
+Root cause:
+
+- callback URL built from env vars did not exactly match the registered Google redirect URI.
+
+How to debug it:
+
+- inspect the actual redirect URI being sent
+- compare scheme, host, port, and path with Google console configuration
+- verify `PUBLIC_BASE_URL` and `CLIENT_ORIGIN`
+
+Resolution:
+
+- fix env values to use exact `https://...` URL
+
+Prevention:
+
+- keep auth callback config documented
+- avoid ambiguous or partial URL env values
+
+#### D. Mobile friends panel text was wrapping badly or hiding
+
+Symptom:
+
+- friend names and status text looked broken on mobile.
+
+Root cause:
+
+- narrow layout constraints and truncation assumptions conflicted with real content length.
+
+How to debug it:
+
+- inspect mobile layout at narrow breakpoints
+- identify whether grid columns, overflow rules, or button placement are constraining content
+- test with long display names
+
+Resolution:
+
+- allow wrapping where necessary
+- separate text and action layout more clearly
+- move buttons to their own row when needed on smaller screens
+
+Prevention:
+
+- test responsive layouts with long content and real user-like strings
+
+### 11.3 What Could Have Happened in This Architecture
+
+These are plausible scenario questions that fit the codebase well.
+
+#### A. Duplicate friend request race condition
+
+Possible symptom:
+
+- both users send requests at the same time and the system produces confusing pending state.
+
+Likely root cause:
+
+- concurrent request creation and reverse-request handling overlap in time.
+
+How to debug it:
+
+- inspect request rows for both sender/receiver directions
+- verify unique constraints and upsert behavior
+- check whether friendship creation and request updates happen atomically enough
+
+Good fix direction:
+
+- transaction or idempotent upsert logic around reverse-request acceptance
+
+#### B. Reconnect restored the room, but presence looked wrong
+
+Possible symptom:
+
+- user is back in the match, but social presence or join availability still looks inconsistent.
+
+Likely root cause:
+
+- room socket mapping and online presence mapping got out of sync temporarily.
+
+How to debug it:
+
+- inspect disconnect and reconnect logs
+- compare socket-to-room mapping with online-user map
+- verify old socket cleanup timing
+
+Good fix direction:
+
+- tighten lifecycle cleanup and logging around reconnect paths
+
+#### C. OIDC flow failed after app restart
+
+Possible symptom:
+
+- user starts SSO, gets redirected, returns, and the app says the request expired.
+
+Likely root cause:
+
+- OIDC `state` and `code_verifier` are stored in memory;
+- process restart loses them before callback completes.
+
+How to debug it:
+
+- inspect error message for expired or missing OIDC state
+- check app restart/recycle timing
+- confirm whether the issue reproduces after warm steady-state runs
+
+Good fix direction:
+
+- move OIDC auth state to shared or durable temporary storage
+
+#### D. Leaderboard ordering felt wrong to users
+
+Possible symptom:
+
+- users think rankings are incorrect even though stored scores are valid.
+
+Likely root cause:
+
+- tie-breaking rules or ranking expectations are not obvious;
+- product expectation differs from current query ordering.
+
+How to debug it:
+
+- inspect the sort order in the leaderboard query
+- test tied scores
+- compare implementation behavior with product expectations
+
+Good fix direction:
+
+- clarify or change secondary ordering rules
+
+### 11.4 Common Bugs Interviewers Like to Ask About
+
+These may not have happened in your project, but they are common scenario questions.
+
+#### A. "Login is failing for one user"
+
+How to debug:
+
+1. confirm whether this is password login, guest flow, or Google SSO
+2. inspect frontend request and status code
+3. check backend auth logs
+4. verify account data in DB
+5. verify token issuance or callback behavior
+
+Likely categories:
+
+- bad credentials
+- stale token
+- DB unavailable
+- account is SSO-only but user is trying password login
+- wrong provider callback config
+
+#### B. "API works locally but fails in production"
+
+How to debug:
+
+1. compare environment variables
+2. compare CORS/origin assumptions
+3. inspect deployment logs and startup behavior
+4. verify database and third-party dependency connectivity
+5. confirm build artifact actually includes required generated files
+
+Likely categories:
+
+- missing env vars
+- wrong origin/callback URL
+- hidden deployment artifact missing
+- wrong database connection string
+- WebSockets disabled or route mismatch
+
+#### C. "WebSocket connection fails but REST works"
+
+How to debug:
+
+1. confirm `/auth/me` works
+2. inspect socket `connect_error`
+3. verify handshake token is actually sent
+4. inspect websocket/CORS/App Service settings
+5. check whether the app rejects the token in socket middleware
+
+Likely categories:
+
+- missing token in handshake
+- stale JWT
+- websocket hosting/config issue
+- origin mismatch
+
+#### D. "App is suddenly slow"
+
+How to debug:
+
+1. determine whether the slowness is frontend, backend, DB, or network
+2. check whether this is cold-start related
+3. inspect DB availability and query latency
+4. inspect room count / server load
+5. compare with recent deploy or config changes
+
+Likely categories:
+
+- Azure SQL wake-up
+- cold app instance
+- missing index or slow query
+- too much work on one server instance
+- dependency timeout
+
+#### E. "A Python script or JS function works on small input but fails on larger input"
+
+How to debug:
+
+1. measure the input size and failure mode
+2. inspect algorithmic complexity
+3. identify data structure choice
+4. separate correctness problems from performance problems
+5. optimize only after understanding the actual bottleneck
+
+Likely categories:
+
+- O(n^2) logic where O(n log n) or O(n) is needed
+- wrong container choice
+- excessive copying
+- recursion or memory growth issues
+
+### 11.5 How To Sound Strong in Scenario Questions
+
+Good answer style:
+
+- calm
+- layered
+- evidence-driven
+- specific about what signal you would check next
+
+Avoid:
+
+- jumping straight to one guess
+- acting certain without checking logs or boundaries
+- giving only theoretical causes without an investigation plan
+
+Good sentence patterns:
+
+- "First I'd clarify whether this is affecting one user or all users."
+- "Then I'd separate frontend failure from backend failure using logs and the network tab."
+- "If the external provider succeeded, I would next check the local callback path and database dependency."
+- "I would treat configuration, connectivity, and state management as separate possible failure layers."
+
+---
+
+## 12. Troubleshooting Stories You Should Know
 
 These are strong interview/support narratives.
 
