@@ -4,6 +4,8 @@
 
 This service owns the in-memory matchmaking queue. When two authenticated sockets are queued, it asks the room manager to create a two-player room and emits `roomJoined` to both clients.
 
+For the current scaling step, Redis is being introduced for short-lived shared auth state first, while matchmaking remains instance-local. A truly shared matchmaking queue needs either socket routing or a cross-instance room ownership model so one server can safely pair users whose sockets may live on different Node processes.
+
 ## Why It Exists
 
 Matchmaking must be centralized on the server so clients cannot assign themselves to rooms or duplicate matches.

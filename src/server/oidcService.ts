@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import type { OidcConfig } from "./config";
+import type { TransientStore } from "./transientStore";
 
 interface OidcMetadata {
   issuer: string;
@@ -62,9 +63,11 @@ const AUTH_STATE_TTL_MS = 10 * 60 * 1000;
 export class OidcService {
   private metadataCache: { value: OidcMetadata; expiresAt: number } | null = null;
   private jwksCache: { value: OidcJsonWebKey[]; expiresAt: number } | null = null;
-  private readonly pendingAuthorizations = new Map<string, OidcAuthorizationState>();
 
-  constructor(private readonly config: OidcConfig) {}
+  constructor(
+    private readonly config: OidcConfig,
+    private readonly transientStore: TransientStore,
+  ) {}
 
   get providerName(): string {
     return this.config.providerName;
@@ -77,12 +80,11 @@ export class OidcService {
     const nonce = randomUrlToken(32);
     const codeChallenge = base64Url(crypto.createHash("sha256").update(codeVerifier).digest());
 
-    this.cleanupExpiredStates();
-    this.pendingAuthorizations.set(state, {
+    await this.transientStore.setJson(this.authorizationStateKey(state), {
       codeVerifier,
       nonce,
       expiresAt: Date.now() + AUTH_STATE_TTL_MS,
-    });
+    }, AUTH_STATE_TTL_MS);
 
     const url = new URL(metadata.authorization_endpoint);
     url.searchParams.set("client_id", this.config.clientId);
@@ -98,12 +100,10 @@ export class OidcService {
 
   async exchangeCode(code: string, state: string): Promise<OidcUserProfile> {
     const metadata = await this.loadMetadata();
-    const pending = this.pendingAuthorizations.get(state);
+    const pending = await this.transientStore.takeJson<OidcAuthorizationState>(this.authorizationStateKey(state));
     if (!pending || pending.expiresAt < Date.now()) {
-      this.pendingAuthorizations.delete(state);
       throw new Error("SSO request expired. Start the sign-in flow again.");
     }
-    this.pendingAuthorizations.delete(state);
 
     const tokenResponse = await fetch(metadata.token_endpoint, {
       method: "POST",
@@ -262,13 +262,8 @@ export class OidcService {
     return metadata;
   }
 
-  private cleanupExpiredStates(): void {
-    const now = Date.now();
-    for (const [state, pending] of this.pendingAuthorizations.entries()) {
-      if (pending.expiresAt < now) {
-        this.pendingAuthorizations.delete(state);
-      }
-    }
+  private authorizationStateKey(state: string): string {
+    return `oidc:state:${this.config.providerId}:${state}`;
   }
 }
 

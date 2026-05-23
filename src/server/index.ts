@@ -17,11 +17,16 @@ import { hashPassword, verifyPassword } from "./passwordService";
 import { SocialError, SocialService } from "./socialService";
 import { EmailService } from "./emailService";
 import { OidcService, type OidcUserProfile } from "./oidcService";
+import { createRateLimiter, enforceRateLimit } from "./rateLimiter";
+import { checkRedisHealth, warmRedis } from "./redis";
+import { createTransientStore } from "./transientStore";
 
 const config = loadConfig();
 const authService = new AuthService(config.jwtSecret);
 const emailService = new EmailService(config);
-const oidcService = config.oidc ? new OidcService(config.oidc) : null;
+const transientStore = createTransientStore(config.redisUrl);
+const rateLimiter = createRateLimiter(config.redisUrl);
+const oidcService = config.oidc ? new OidcService(config.oidc, transientStore) : null;
 const app = express();
 const server = http.createServer(app);
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(server, {
@@ -31,6 +36,9 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(server, {
   },
 });
 let socialService: SocialService;
+
+const TEN_MINUTES_MS = 10 * 60 * 1000;
+const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
 
 interface PendingRegistration {
   username: string;
@@ -49,14 +57,30 @@ interface PendingPasswordReset {
   expiresAt: number;
 }
 
-const pendingRegistrations = new Map<string, PendingRegistration>();
-const pendingPasswordResets = new Map<string, PendingPasswordReset>();
-
 app.use(cors({ origin: config.nodeEnv === "production" ? false : config.clientOrigin }));
+app.set("trust proxy", 1);
 app.use(express.json());
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "coop-tetris", time: new Date().toISOString() });
+});
+
+app.get("/health/ready", async (_req, res) => {
+  const redis = await checkRedisHealth(config.redisUrl);
+  const dependencies = {
+    database: {
+      configured: isDatabaseConfigured(),
+    },
+    redis,
+  };
+
+  const ready = !redis.configured || redis.healthy;
+  res.status(ready ? 200 : 503).json({
+    ok: ready,
+    service: "coop-tetris",
+    time: new Date().toISOString(),
+    dependencies,
+  });
 });
 
 app.get("/auth/oidc/config", (_req, res) => {
@@ -67,6 +91,9 @@ app.get("/auth/oidc/config", (_req, res) => {
 });
 
 app.get("/auth/oidc/start", async (_req, res) => {
+  if (!(await enforceRateLimit(rateLimiter, _req, res, "auth:oidc:start", 20, TEN_MINUTES_MS))) {
+    return;
+  }
   if (!oidcService) {
     res.status(404).json({ message: "Single sign-on is not configured." });
     return;
@@ -121,12 +148,23 @@ app.get("/auth/oidc/callback", async (req, res) => {
 });
 
 app.post("/auth/demo", (req, res) => {
-  const displayName = typeof req.body?.displayName === "string" ? req.body.displayName : "Player";
-  const token = authService.createDemoToken(displayName);
-  res.json({ token });
+  void (async () => {
+    if (!(await enforceRateLimit(rateLimiter, req, res, "auth:demo", 30, TEN_MINUTES_MS))) {
+      return;
+    }
+    const displayName = typeof req.body?.displayName === "string" ? req.body.displayName : "Player";
+    const token = authService.createDemoToken(displayName);
+    res.json({ token });
+  })().catch((error) => {
+    logger.error({ error }, "demo auth failed");
+    res.status(500).json({ message: "Demo auth failed." });
+  });
 });
 
 app.post("/auth/register", async (req, res) => {
+  if (!(await enforceRateLimit(rateLimiter, req, res, "auth:register", 8, FIFTEEN_MINUTES_MS))) {
+    return;
+  }
   if (!isDatabaseConfigured()) {
     res.status(503).json({ message: "Database auth is not configured. Use guest mode." });
     return;
@@ -151,20 +189,20 @@ app.post("/auth/register", async (req, res) => {
       }
 
       const otp = createOtp();
-      pendingRegistrations.set(parsed.email, {
+      await transientStore.setJson<PendingRegistration>(registrationKey(parsed.email), {
         username: parsed.username,
         email: parsed.email,
         displayName: parsed.displayName,
         passwordHash: await hashPassword(parsed.password),
         otpHash: hashOtp(otp),
         expiresAt: Date.now() + 10 * 60 * 1000,
-      });
+      }, 10 * 60 * 1000);
       await emailService.sendRegistrationOtp(parsed.email, parsed.displayName, otp);
       res.status(202).json({ otpRequired: true, message: "We sent a 6-digit OTP to your email." });
       return;
     }
 
-    const pending = pendingRegistrations.get(parsed.email);
+    const pending = await transientStore.getJson<PendingRegistration>(registrationKey(parsed.email));
     if (
       !pending ||
       pending.expiresAt < Date.now() ||
@@ -184,7 +222,7 @@ app.post("/auth/register", async (req, res) => {
       },
       select: { id: true, displayName: true },
     });
-    pendingRegistrations.delete(parsed.email);
+    await transientStore.delete(registrationKey(parsed.email));
     const token = authService.createToken({ userId: user.id, displayName: user.displayName });
     res.status(201).json({
       token,
@@ -201,6 +239,9 @@ app.post("/auth/register", async (req, res) => {
 });
 
 app.post("/auth/login", async (req, res) => {
+  if (!(await enforceRateLimit(rateLimiter, req, res, "auth:login", 15, TEN_MINUTES_MS))) {
+    return;
+  }
   if (!isDatabaseConfigured()) {
     res.status(503).json({ message: "Database auth is not configured. Use guest mode." });
     return;
@@ -245,6 +286,9 @@ app.post("/auth/login", async (req, res) => {
 });
 
 app.post("/auth/forgot-password", async (req, res) => {
+  if (!(await enforceRateLimit(rateLimiter, req, res, "auth:forgot-password", 6, FIFTEEN_MINUTES_MS))) {
+    return;
+  }
   if (!isDatabaseConfigured()) {
     res.status(503).json({ message: "Database auth is not configured. Use guest mode." });
     return;
@@ -263,13 +307,13 @@ app.post("/auth/forgot-password", async (req, res) => {
     });
     if (user?.email) {
       const otp = createOtp();
-      pendingPasswordResets.set(user.email, {
+      await transientStore.setJson<PendingPasswordReset>(passwordResetKey(user.email), {
         userId: user.id,
         email: user.email,
         displayName: user.displayName,
         otpHash: hashOtp(otp),
         expiresAt: Date.now() + 10 * 60 * 1000,
-      });
+      }, 10 * 60 * 1000);
       await emailService.sendPasswordResetOtp(user.email, user.displayName, otp);
     }
 
@@ -281,6 +325,9 @@ app.post("/auth/forgot-password", async (req, res) => {
 });
 
 app.post("/auth/reset-password", async (req, res) => {
+  if (!(await enforceRateLimit(rateLimiter, req, res, "auth:reset-password", 10, FIFTEEN_MINUTES_MS))) {
+    return;
+  }
   if (!isDatabaseConfigured()) {
     res.status(503).json({ message: "Database auth is not configured. Use guest mode." });
     return;
@@ -294,7 +341,7 @@ app.post("/auth/reset-password", async (req, res) => {
     return;
   }
 
-  const pending = pendingPasswordResets.get(email);
+  const pending = await transientStore.getJson<PendingPasswordReset>(passwordResetKey(email));
   if (!pending || pending.expiresAt < Date.now() || pending.otpHash !== hashOtp(otp)) {
     res.status(400).json({ message: "OTP is invalid or expired. Request a new code." });
     return;
@@ -305,7 +352,7 @@ app.post("/auth/reset-password", async (req, res) => {
       where: { id: pending.userId },
       data: { passwordHash: await hashPassword(password) },
     });
-    pendingPasswordResets.delete(email);
+    await transientStore.delete(passwordResetKey(email));
     res.json({ message: "Password reset. You can log in with the new password." });
   } catch (error) {
     logger.error({ error }, "password reset failed");
@@ -397,8 +444,26 @@ socialService = new SocialService(io, roomManager);
 const matchmaking = new MatchmakingService(io, roomManager);
 registerSocketGateway(io, authService, roomManager, matchmaking, socialService);
 
+if (config.redisUrl) {
+  void warmRedis(config.redisUrl)
+    .then(() => {
+      logger.info("redis warmup succeeded");
+    })
+    .catch((error) => {
+      logger.error({ error }, "redis warmup failed");
+    });
+}
+
 server.listen(config.port, config.host, () => {
-  logger.info({ host: config.host, port: config.port, env: config.nodeEnv }, "coop tetris server listening");
+  logger.info(
+    {
+      host: config.host,
+      port: config.port,
+      env: config.nodeEnv,
+      redisConfigured: Boolean(config.redisUrl),
+    },
+    "coop tetris server listening",
+  );
 });
 
 type ParsedCredentials =
@@ -446,6 +511,14 @@ function normalizeOtp(value: unknown): string {
 
 function createOtp(): string {
   return crypto.randomInt(100000, 1000000).toString();
+}
+
+function registrationKey(email: string): string {
+  return `auth:register:${email}`;
+}
+
+function passwordResetKey(email: string): string {
+  return `auth:reset:${email}`;
 }
 
 function hashOtp(otp: string): string {

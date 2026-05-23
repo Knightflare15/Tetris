@@ -7,6 +7,7 @@ export interface ServerConfig {
   port: number;
   nodeEnv: string;
   jwtSecret: string;
+  redisUrl?: string;
   publicBaseUrl: string;
   clientOrigin: string;
   disconnectGraceMs: number;
@@ -28,11 +29,11 @@ export interface OidcConfig {
 export function loadConfig(): ServerConfig {
   const nodeEnv = process.env.NODE_ENV ?? "development";
   const host = process.env.HOST?.trim() || (nodeEnv === "production" ? "0.0.0.0" : "127.0.0.1");
-  const jwtSecret = process.env.JWT_SECRET ?? "dev-secret-change-me";
+  const jwtSecret = process.env.JWT_SECRET ?? "secret";
   const publicBaseUrl = (process.env.PUBLIC_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`).trim().replace(/\/+$/, "");
   const clientOrigin = (process.env.CLIENT_ORIGIN ?? "http://localhost:8080").trim().replace(/\/+$/, "");
 
-  if (nodeEnv === "production" && jwtSecret === "dev-secret-change-me") {
+  if (nodeEnv === "production" && jwtSecret === "secret") {
     throw new Error("JWT_SECRET must be set in production.");
   }
 
@@ -41,6 +42,7 @@ export function loadConfig(): ServerConfig {
     port: Number(process.env.PORT ?? 3000),
     nodeEnv,
     jwtSecret,
+    redisUrl: process.env.REDIS_URL?.trim() || undefined,
     publicBaseUrl,
     clientOrigin,
     disconnectGraceMs: Number(process.env.DISCONNECT_GRACE_MS ?? 30000),
