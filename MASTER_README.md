@@ -113,6 +113,9 @@ Files:
 - [src/server/config.ts](C:/Users/Aryan/Tetris/src/server/config.ts)
 - [src/server/database.ts](C:/Users/Aryan/Tetris/src/server/database.ts)
 - [src/server/databaseUrl.ts](C:/Users/Aryan/Tetris/src/server/databaseUrl.ts)
+- [src/server/redis.ts](C:/Users/Aryan/Tetris/src/server/redis.ts)
+- [src/server/transientStore.ts](C:/Users/Aryan/Tetris/src/server/transientStore.ts)
+- [src/server/rateLimiter.ts](C:/Users/Aryan/Tetris/src/server/rateLimiter.ts)
 
 Responsibilities:
 
@@ -122,7 +125,9 @@ Responsibilities:
 - manages matchmaking and active rooms;
 - talks to the database via Prisma;
 - handles OIDC callback and account linking;
-- tracks presence and social state.
+- tracks presence and social state;
+- stores short-lived auth flow state in Redis when configured;
+- applies auth and SSO rate limiting.
 
 ### Data Layer
 
@@ -531,7 +536,7 @@ The project supports:
 
 Important ideas:
 
-- Pending registrations live in memory in the current version, which is simple but means restarts can interrupt unfinished auth flows.
+- Pending registrations and password resets now use a transient store abstraction, which can be backed by Redis in deployed environments and fall back to in-memory storage locally.
 - OTP generation provides a short-lived second proof step for registration and password reset flows.
 - Hashing OTPs before comparison is better than storing or comparing raw codes carelessly, because temporary secrets should still be handled defensively.
 - Email delivery abstraction keeps transport concerns separate from auth workflow logic, which is cleaner and easier to swap or test.
@@ -545,7 +550,33 @@ What to understand:
 
 Current limitation:
 
-- OTP state is in memory, so server restarts lose pending OTPs.
+- If `REDIS_URL` is not configured, OTP state falls back to memory, so local restarts can still interrupt unfinished auth flows.
+
+### 4.14A Redis and Shared Ephemeral State
+
+The project now uses Redis for small, short-lived coordination data.
+
+Current uses:
+
+- OIDC authorization state such as `state`, `nonce`, and PKCE verifier;
+- pending registration OTP artifacts;
+- pending password-reset OTP artifacts;
+- rate-limiting counters for auth and SSO routes;
+- startup warmup and readiness checks.
+
+Important ideas:
+
+- Redis is not being used as a second primary database; it is being used as a fast temporary state layer for values that expire quickly.
+- TTL-bound keys are a strong fit for OIDC state and OTP state because these workflows naturally have short validity windows.
+- Redis is useful here even on a single app instance because it improves restart resilience and enables shared rate limiting.
+- The app intentionally keeps live room simulation, snapshots, and tick processing out of Redis because that path is latency-sensitive and better kept in local process memory.
+- The current Redis plan is small on purpose because the free Redis Cloud tier only has a limited memory budget, so only compact expiring values are stored there.
+
+What to understand:
+
+- Redis is most useful here for ephemeral coordination state, not durable product records.
+- Shared caches and shared transient stores solve different problems than SQL databases.
+- A transient store abstraction makes it easier to run with Redis in deployed environments while still having a local fallback for development.
 
 ### 4.15 Prisma ORM
 
@@ -791,8 +822,10 @@ Important ideas:
 - Production build output matters because the deployed app serves compiled assets rather than raw development tooling.
 - A single-host app serving both API and client reduces deployment complexity and avoids some cross-origin headaches in production.
 - A health endpoint provides a simple signal that the process is alive, though it is not the same as full dependency readiness.
+- This project now separates liveness from readiness: `/health` is lightweight process liveness, while `/health/ready` is the dependency-aware path that currently checks Redis.
 - Websocket support requirements matter because realtime behavior can fail even when ordinary HTTP routes still work.
 - App restarts and warmup issues matter because cloud platforms can recycle processes or wake cold services at inconvenient times.
+- Redis warmup on startup is useful because it surfaces bad connection strings or SSL mismatches earlier instead of waiting until the first auth flow touches Redis.
 
 Related prep:
 
@@ -805,6 +838,7 @@ What to understand:
 
 - Azure deployment is not just "upload code"; it includes configuration, startup behavior, process lifetime, and dependency reachability.
 - A health endpoint answers whether the process is alive, but not always whether all dependencies are ready.
+- Readiness checks are more operationally useful when a dependency like Redis has become part of the auth path.
 
 ### 4.26 Docker and Container Thinking
 
@@ -1098,6 +1132,10 @@ You should know what each important variable does.
 - `PUBLIC_BASE_URL` - backend public URL, used for callback construction
 - `DISCONNECT_GRACE_MS` - reconnect grace window
 
+### Redis / Shared Temporary State
+
+- `REDIS_URL` - Redis connection string used for transient auth state, readiness checks, and auth rate limiting
+
 ### Database
 
 - `DATABASE_URL` - Prisma / SQL Server connection string
@@ -1136,6 +1174,7 @@ These are worth emphasizing:
 - deterministic engine;
 - account + guest support;
 - external identity support;
+- Redis-backed transient auth state and auth rate limiting;
 - relational persistence;
 - migrations and deployment experience;
 - structured logs;
@@ -1153,13 +1192,12 @@ These are still memory-backed:
 
 - active rooms;
 - online presence;
-- pending registration OTPs;
-- pending password-reset OTPs;
-- OIDC authorization state.
+- matchmaking queue;
+- live reconnect and room ownership state.
 
 Implication:
 
-- server restart can interrupt these workflows.
+- server restart can interrupt these workflows, though OIDC temp state and OTP state are now more resilient when Redis is configured.
 
 ### Single-Instance Assumptions
 
@@ -1167,10 +1205,10 @@ The design currently assumes one backend instance for easy realtime coordination
 
 What would be needed to scale horizontally:
 
-- Redis or another shared state layer;
+- explicit room ownership metadata;
 - distributed presence;
 - shared matchmaking queue;
-- externalized ephemeral auth state.
+- cross-instance socket coordination.
 
 ### Cold Starts
 
@@ -1188,12 +1226,12 @@ The schema has refresh-token support, but the current user-facing flow is still 
 
 These are not fatal flaws, but they are real boundaries of the current implementation.
 
-- The app still depends on in-memory state for rooms, presence, OTP workflows, and OIDC request state.
+- The app still depends on in-memory state for rooms, presence, reconnect ownership, and matchmaking.
 - The backend is optimized for a single active instance rather than horizontally scaled realtime coordination.
 - Database availability can directly affect login and OIDC callback reliability, especially when Azure SQL is paused or waking up.
 - The social and auth systems are functional, but some production-grade features such as refresh-token rotation, account linking UX, and deeper admin diagnostics are not fully built out yet.
 - There is limited observability compared with a mature SaaS platform. Logging exists, but the project does not yet include full tracing, metrics dashboards, alerting, or application performance monitoring.
-- The current health endpoint confirms the app process is alive, but it is not a deep dependency-aware health check for services like the database or email provider.
+- The readiness story is improved for Redis, but the app still does not have equally deep dependency-aware checks for the database or email provider.
 
 Professional way to describe this:
 
@@ -1211,9 +1249,10 @@ This section is useful when an interviewer asks:
 
 ### 1. Externalize Ephemeral Shared State
 
-Current limitation:
+Current state:
 
-- room state, presence, OTP state, and OIDC request state live in memory inside one app process.
+- OTP state and OIDC request state can already live in Redis;
+- room state, presence, reconnect metadata, and matchmaking still live in memory inside one app process.
 
 Why it matters:
 
@@ -1223,9 +1262,9 @@ Why it matters:
 
 Upgrade path:
 
-- introduce Redis or another shared low-latency state layer;
+- extend Redis-backed state to reconnect metadata, presence, and carefully chosen coordination state;
 - move presence and reconnect metadata into shared storage;
-- store short-lived auth flow state outside the process when needed.
+- keep the live tick loop in-memory on the room-owning server rather than forcing gameplay through Redis.
 
 Value:
 
@@ -1290,14 +1329,14 @@ Value:
 
 ### 5. Deep Health and Readiness Checks
 
-Current limitation:
+Current state:
 
-- `/health` is a lightweight liveness endpoint only.
+- `/health` is still a lightweight liveness endpoint;
+- `/health/ready` now checks Redis readiness.
 
 Upgrade path:
 
-- add dependency-aware checks such as database reachability;
-- separate liveness from readiness;
+- add dependency-aware checks such as database reachability and optional email-provider validation;
 - optionally add internal debug endpoints protected by environment flags.
 
 Value:
@@ -1308,13 +1347,14 @@ Value:
 
 ### 6. More Durable Auth Workflows
 
-Current limitation:
+Current state:
 
-- pending registration and password reset flows are memory-backed.
+- pending registration and password reset flows can use Redis-backed transient storage;
+- they still fall back to memory when Redis is not configured.
 
 Upgrade path:
 
-- move pending OTP/session artifacts to the database or a shared cache;
+- keep OTP/session artifacts TTL-based in Redis or move selected flows to the database if auditability becomes more important;
 - add expiry cleanup jobs or TTL-based storage;
 - optionally add resend limits, retry controls, and abuse protections.
 
@@ -1372,7 +1412,7 @@ Current limitation:
 Upgrade path:
 
 - stricter secret rotation discipline;
-- more explicit rate limiting on auth flows;
+- extend rate limiting beyond the current auth routes into friend-request, social, and debug surfaces if needed;
 - stronger auditing around login and account events;
 - role-based admin/debug access if support tools are added;
 - review of token lifetime and credential exposure boundaries.
@@ -1648,10 +1688,10 @@ Possible symptom:
 
 - user starts SSO, gets redirected, returns, and the app says the request expired.
 
-Likely root cause:
+Likely root cause in the earlier version:
 
-- OIDC `state` and `code_verifier` are stored in memory;
-- process restart loses them before callback completes.
+- OIDC `state` and `code_verifier` were stored in memory;
+- process restart could lose them before callback completed.
 
 How to debug it:
 
@@ -1663,7 +1703,33 @@ Good fix direction:
 
 - move OIDC auth state to shared or durable temporary storage
 
-#### D. Leaderboard ordering felt wrong to users
+Current status:
+
+- this has now been improved by backing the OIDC temporary state with Redis when configured.
+
+#### D. Redis connection kept failing locally with SSL errors
+
+Possible symptom:
+
+- the backend started, but Redis kept logging `ERR_SSL_WRONG_VERSION_NUMBER`.
+
+Likely root cause:
+
+- the Redis connection URL used the wrong scheme or TLS expectation for the Redis Cloud endpoint;
+- the app was trying to negotiate SSL/TLS against an endpoint that expected the other mode.
+
+How to debug it:
+
+- inspect the exact `REDIS_URL` format
+- compare `redis://` vs `rediss://` with the provider's connection instructions
+- restart the backend and confirm whether warmup succeeds
+
+Good fix direction:
+
+- use the exact connection URI format provided by Redis Cloud
+- confirm the backend startup log shows `redis connected` and `redis warmup succeeded`
+
+#### E. Leaderboard ordering felt wrong to users
 
 Possible symptom:
 
@@ -1925,8 +1991,8 @@ Cons:
 
 - active rooms disappear on restart;
 - online presence is not shared across instances;
-- OIDC state and OTP state are ephemeral;
-- scaling horizontally would require Redis or another shared state layer.
+- matchmaking is still instance-local;
+- scaling horizontally would require more Redis-backed coordination plus explicit room ownership.
 
 Good interview phrasing:
 
@@ -2132,7 +2198,8 @@ Strong answer:
 - In-memory transient state exists only inside the running app instance.
 - In this project:
   - users, friendships, scores, and OIDC account links are durable;
-  - active rooms, live presence, pending OTPs, and OIDC authorization state are transient.
+  - active rooms, live presence, reconnect metadata, and matchmaking are transient;
+  - OTP and OIDC temporary auth state are transient too, but can now live in Redis rather than only in local memory.
 
 #### Why would you use a transaction in a social or auth workflow?
 
@@ -2175,10 +2242,10 @@ Strong answer:
 - in-memory rooms would not be shared;
 - presence would be instance-local;
 - reconnect tokens would fail across instances;
-- pending OTP state and OIDC state would be instance-local;
-- matchmaking queues would fragment.
+- matchmaking queues would fragment;
+- without explicit room ownership, different instances could not safely coordinate live matches.
 
-The next fix would be shared state infrastructure such as Redis.
+The next fix would be shared coordination infrastructure such as Redis plus a room-ownership model.
 
 #### Why can hidden Prisma runtime files matter during deployment?
 
@@ -2308,6 +2375,11 @@ Helpful references:
 - [PKCE (RFC 7636)](https://datatracker.ietf.org/doc/html/rfc7636)
 - [Google OpenID Connect docs](https://developers.google.com/identity/openid-connect/openid-connect)
 - [Google OAuth web server flow](https://developers.google.com/identity/protocols/oauth2/web-server)
+- [node-redis package](https://www.npmjs.com/package/redis)
+- [Redis Cloud connection guide](https://redis.io/docs/latest/operate/rc/databases/connect/)
+- [Redis rate limiter pattern](https://redis.io/docs/latest/develop/use-cases/rate-limiter/)
+- [Redis `INCR`](https://redis.io/docs/latest/commands/incr/)
+- [Redis `EXPIRE`](https://redis.io/docs/latest/commands/expire/)
 - [Prisma Migrate `deploy`](https://www.prisma.io/docs/cli/migrate/deploy)
 - [Prisma baselining](https://www.prisma.io/docs/orm/prisma-migrate/workflows/baselining)
 - [Prisma transactions](https://www.prisma.io/docs/orm/prisma-client/queries/transactions)
@@ -2680,6 +2752,82 @@ Study these:
 - [OWASP MFA Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Multifactor_Authentication_Cheat_Sheet.html)
 - [OWASP SAML Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/SAML_Security_Cheat_Sheet.html)
 
+High-level orientation before you open them:
+
+- `OpenID Connect Core`
+  - This is the main identity spec behind "Sign in with Google" style login.
+  - Read it to understand the identity layer on top of OAuth 2.0: ID tokens, claims, issuer, audience, nonce, and callback validation.
+  - In this project, this is the conceptual foundation for [src/server/oidcService.ts](C:/Users/Aryan/Tetris/src/server/oidcService.ts).
+
+- `PKCE RFC 7636`
+  - This explains the security mechanism used in the authorization code flow.
+  - Read it to understand `code_verifier` and `code_challenge`, and why the auth code alone should not be enough.
+  - In interview language, PKCE protects the code-exchange step from interception abuse.
+
+- `JWT RFC 7519`
+  - This is the token format spec for signed JSON Web Tokens.
+  - Read it to understand the shape of `header.payload.signature` and common claims such as `sub`, `exp`, `aud`, and `iss`.
+  - In this project, app JWTs are for local session auth, while Google-issued tokens are provider-side identity artifacts.
+
+- `Google OpenID Connect docs` and `Google OAuth web server flow`
+  - These are the provider-specific docs that turn the generic standards into a real Google integration.
+  - Read them to understand the practical callback flow, redirect URI rules, and what Google returns.
+
+- `OWASP authentication and authorization cheat sheets`
+  - These are not implementation tutorials so much as good security thinking guides.
+  - Read them to understand common auth mistakes, abuse cases, credential handling, and authorization boundaries.
+
+- `OWASP SAML Security Cheat Sheet`
+  - This matters mainly so you can compare OIDC and SAML in enterprise discussions.
+  - You do not need to become a SAML implementer here; you just need the conceptual difference.
+
+Key terms to know before studying identity:
+
+- `authentication`
+  - Proving who the user is.
+
+- `authorization`
+  - Deciding what the authenticated user is allowed to do.
+
+- `OAuth 2.0`
+  - A framework for delegated authorization.
+
+- `OIDC`
+  - OpenID Connect, which adds an identity layer on top of OAuth 2.0.
+
+- `ID token`
+  - A token containing identity claims about the user.
+
+- `access token`
+  - A token used to call protected APIs or provider resources.
+
+- `issuer`
+  - The identity provider that created the token.
+
+- `audience`
+  - The app the token was meant for.
+
+- `state`
+  - Anti-forgery value returned through the callback.
+
+- `nonce`
+  - Anti-replay value checked against the ID token.
+
+- `PKCE`
+  - Proof Key for Code Exchange; protects the authorization-code flow.
+
+- `JWKS`
+  - JSON Web Key Set; the provider's public keys used for token verification.
+
+How to think about identity in this project:
+
+- Google proves the user's external identity.
+- The backend validates that provider identity.
+- Then the app issues its own JWT for its own API and socket session model.
+- So the mental model is:
+  - `provider token` = external identity proof
+  - `app JWT` = local app session
+
 What to take away:
 
 - difference between OAuth and OIDC
@@ -2695,6 +2843,47 @@ Study these:
 
 - [Google OpenID Connect setup and flow](https://developers.google.com/identity/openid-connect/openid-connect)
 - [Google OAuth web server applications](https://developers.google.com/identity/protocols/oauth2/web-server)
+
+High-level orientation before you open them:
+
+- These docs are the practical setup side of the identity flow rather than the abstract protocol side.
+- Read them to understand what you actually configure in Google Cloud:
+  - project
+  - OAuth client
+  - client ID
+  - client secret
+  - authorized redirect URI
+  - authorized origin
+- This is where "my OIDC flow is conceptually correct" becomes "my app actually logs in successfully."
+
+Key terms to know:
+
+- `OAuth client`
+  - The registered app entry in Google Cloud.
+
+- `client ID`
+  - The public identifier for your app.
+
+- `client secret`
+  - The private credential used in the backend token exchange.
+
+- `authorized redirect URI`
+  - The exact callback URL Google is allowed to redirect back to.
+
+- `authorized origin`
+  - The browser origin allowed for certain frontend-side interactions.
+
+- `consent screen`
+  - The user-facing Google auth screen showing the app and scopes.
+
+- `test users`
+  - Accounts allowed to use the app while it is still in testing mode.
+
+How to think about this section:
+
+- The protocol tells you what should happen.
+- Google Cloud settings decide whether Google will permit it.
+- Many real-world auth bugs are not cryptography bugs; they are exact-URL or config mismatch bugs.
 
 What to take away:
 
@@ -2713,6 +2902,57 @@ Study these:
 - [Prisma transactions](https://www.prisma.io/docs/orm/prisma-client/queries/transactions)
 - [Azure SQL serverless / auto-pause](https://learn.microsoft.com/en-us/azure/azure-sql/database/serverless-tier-overview?view=azuresql)
 
+High-level orientation before you open them:
+
+- `Prisma Migrate getting started`
+  - Read this to understand the normal developer workflow for schema evolution.
+  - This is about how schema changes become migration files and then become real database changes.
+
+- `Prisma Migrate deploy`
+  - Read this to understand the production-safe migration path.
+  - This is the command-path you use after migrations are already created and committed.
+
+- `Prisma baselining`
+  - Read this because it maps directly to the Azure DB issue you hit.
+  - It explains how to tell Prisma to treat an existing schema as the starting migration state.
+
+- `Prisma transactions`
+  - Read this to understand how to make multi-step DB operations succeed or fail together.
+  - This matters for OIDC user linking, friend request acceptance, and other multi-write workflows.
+
+- `Azure SQL serverless / auto-pause`
+  - Read this to understand why a cloud database can behave correctly but still feel flaky during wake-up.
+  - This explains one of the real operational bugs you hit in login/SSO paths.
+
+Key terms to know:
+
+- `schema`
+  - The shape of the database tables, columns, and relations.
+
+- `migration`
+  - A versioned schema change stored in source control.
+
+- `baseline`
+  - Marking an existing DB as already having a starting migration applied.
+
+- `transaction`
+  - A set of DB operations that should commit or fail together.
+
+- `ORM`
+  - Object-relational mapper; Prisma is the project's typed database access layer.
+
+- `index`
+  - A DB structure that speeds up certain lookups or sorts.
+
+- `serverless auto-pause`
+  - The DB can sleep when idle and need time to wake before serving requests again.
+
+How to think about this section:
+
+- Prisma is both a query tool and a schema-management workflow.
+- SQL is your durable product truth.
+- Operational database behavior matters just as much as table design in a deployed app.
+
 What to take away:
 
 - how migrations are created and applied
@@ -2720,6 +2960,94 @@ What to take away:
 - why an existing production database may require baselining
 - how transactions protect multi-step workflows
 - why cold or paused managed databases affect auth and callbacks
+
+### Redis and Shared Temporary State
+
+Study these:
+
+- [node-redis package](https://www.npmjs.com/package/redis)
+- [Redis Cloud connection guide](https://redis.io/docs/latest/operate/rc/databases/connect/)
+- [Redis rate limiter pattern](https://redis.io/docs/latest/develop/use-cases/rate-limiter/)
+- [Redis `INCR`](https://redis.io/docs/latest/commands/incr/)
+- [Redis `EXPIRE`](https://redis.io/docs/latest/commands/expire/)
+
+High-level orientation before you open them:
+
+- `node-redis package`
+  - This is the official Node.js client library used by the app.
+  - Read this to understand how a Node app opens a Redis connection, sends commands, and handles connection errors.
+  - In this project, this is the library behind [src/server/redis.ts](C:/Users/Aryan/Tetris/src/server/redis.ts).
+
+- `Redis Cloud connection guide`
+  - This is the operational doc for connecting your app to a hosted Redis database.
+  - Read this to understand endpoint, port, username, password, TLS, and connection-string format.
+  - This matters because a wrong `redis://` vs `rediss://` choice can break startup even if the rest of the code is fine.
+
+- `Redis rate limiter pattern`
+  - This explains why Redis is often used for shared request counters across one or more app instances.
+  - Read this to understand the problem Redis solves for rate limiting: fast counters with shared visibility and expiry.
+  - In this app, that idea is applied to auth and SSO routes rather than to the realtime game loop.
+
+- `Redis INCR`
+  - This is the core counter command.
+  - Read this to understand how Redis can cheaply count requests, attempts, or hits per key.
+  - In rate limiting, `INCR` is what turns a key into a request counter.
+
+- `Redis EXPIRE`
+  - This is the TTL command that makes keys disappear automatically after a time window.
+  - Read this to understand why OTPs, OIDC state, and rate-limit buckets are natural Redis use cases.
+  - In simple terms, `INCR` answers "how many?" and `EXPIRE` answers "for how long does this count stay relevant?"
+
+Key terms to know before studying Redis:
+
+- `key`
+  - The name under which Redis stores a value, like `oidc:state:google:abc123`.
+
+- `value`
+  - The data stored under the key. In this project it is usually small JSON or a counter.
+
+- `TTL` (time to live)
+  - How long the key should exist before Redis removes it automatically.
+
+- `counter`
+  - A numeric value stored in Redis and incremented for things like rate limiting.
+
+- `transient state`
+  - Temporary data that matters for a short time but does not belong in the durable SQL data model.
+
+- `shared state`
+  - Data visible to more than one server process or useful across restarts.
+
+- `warmup`
+  - A startup check that touches Redis early so connection problems show up immediately instead of during a user flow.
+
+- `readiness`
+  - A deeper health signal than simple liveness. It answers whether the app can actually reach a dependency like Redis.
+
+How to think about Redis in this project:
+
+- Redis is not replacing Prisma or Azure SQL.
+- Redis is not running the Tetris simulation.
+- Redis is helping with short-lived coordination and operational reliability.
+- The current mental model should be:
+  - `SQL` = durable product truth
+  - `Redis` = temporary shared coordination state
+  - `server memory` = hot realtime room state
+
+Good study order:
+
+1. Read `node-redis package`
+2. Read `Redis Cloud connection guide`
+3. Read `INCR`
+4. Read `EXPIRE`
+5. Read `Redis rate limiter pattern`
+
+What to take away:
+
+- why Redis is a good fit for short-lived shared coordination state;
+- why TTL-based keys are useful for OTP and OIDC artifacts;
+- why Redis is helpful for shared rate limiting even before full horizontal scaling;
+- why live match simulation should usually stay in local process memory rather than moving into Redis too early.
 
 ### Realtime and Multiplayer
 
@@ -2730,6 +3058,55 @@ Study these:
 - [Socket.IO middlewares](https://socket.io/docs/v4/middlewares/)
 - [Socket.IO handling CORS](https://socket.io/docs/v4/handling-cors/)
 - [WebSocket RFC 6455](https://www.rfc-editor.org/rfc/rfc6455)
+
+High-level orientation before you open them:
+
+- `Socket.IO overview`
+  - Read this to understand the high-level event model and connection lifecycle.
+  - This is the practical abstraction layer your app uses for realtime communication.
+
+- `Socket.IO rooms`
+  - Read this to understand how one logical match can broadcast snapshots only to the players inside it.
+  - Rooms are the key primitive behind `io.to(roomId).emit(...)`.
+
+- `Socket.IO middlewares`
+  - Read this to understand why websocket auth is enforced during handshake instead of ad hoc inside every event handler.
+
+- `Socket.IO handling CORS`
+  - Read this to understand why browser websocket behavior can differ from local assumptions and how cross-origin configuration affects realtime connections.
+
+- `WebSocket RFC 6455`
+  - This is the lower-level protocol spec.
+  - You do not need to memorize it, but it helps to know that Socket.IO is built above a real transport protocol and not magic.
+
+Key terms to know:
+
+- `handshake`
+  - The connection-establishment step before the socket is fully accepted.
+
+- `event`
+  - A named message sent over the socket, like `snapshot` or `input`.
+
+- `room`
+  - A logical grouping of sockets for targeted broadcasts.
+
+- `broadcast`
+  - Sending a message to many sockets at once.
+
+- `server-authoritative`
+  - The server owns the real shared game state.
+
+- `tick`
+  - One fixed simulation step.
+
+- `snapshot`
+  - The public game-state payload emitted to clients after simulation advances.
+
+How to think about this section:
+
+- HTTP is for durable workflows and one-off requests.
+- Socket.IO is for live state exchange.
+- The server owns the game; the clients mostly send intent and render snapshots.
 
 What to take away:
 
@@ -2753,6 +3130,47 @@ Study these:
 - [MDN `localStorage`](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage)
 - [MDN `sessionStorage`](https://developer.mozilla.org/en-US/docs/Web/API/Window/sessionStorage)
 
+High-level orientation before you open them:
+
+- `React useEffect`
+  - Read this to understand how React synchronizes component code with things outside the render tree, such as sockets, timers, and fetches.
+  - In this project, that matters because the UI reacts to server snapshots and auth/session changes.
+
+- `React useRef`
+  - Read this to understand why some values should survive renders without causing re-renders.
+  - In this app, refs are useful for socket instances, timers, and the latest snapshot reference.
+
+- `MDN JavaScript guide`, `Closures`, `this`, `async function`, and `Promise`
+  - These are your core JS fluency docs.
+  - Read them to strengthen the mental model behind callbacks, async control flow, and function behavior rather than just memorizing syntax.
+
+- `Web Storage API`, `localStorage`, and `sessionStorage`
+  - Read these to understand browser persistence tradeoffs.
+  - This matters because session-restore bugs often come from trusting stale client-side storage too eagerly.
+
+Key terms to know:
+
+- `effect`
+  - Logic that synchronizes with the outside world after render.
+
+- `ref`
+  - A mutable container whose updates do not trigger re-render.
+
+- `closure`
+  - A function keeping access to variables from its lexical scope.
+
+- `stale state`
+  - Old client-side data still being used after it should have been replaced.
+
+- `browser storage`
+  - Client-side persistence like `localStorage` or `sessionStorage`.
+
+How to think about this section:
+
+- React is your UI composition and client orchestration layer.
+- It should not become the authoritative multiplayer engine.
+- The frontend's job is to coordinate session state, user actions, and rendering of server truth.
+
 What to take away:
 
 - why effects are for synchronizing with external systems
@@ -2771,6 +3189,55 @@ Study these:
 - [Python errors and exceptions](https://docs.python.org/3/tutorial/errors.html)
 - [Python modules](https://docs.python.org/3/tutorial/modules.html)
 - [Python functional programming howto](https://docs.python.org/3/howto/functional.html)
+
+High-level orientation before you open them:
+
+- `Python tutorial`
+  - This is the broad foundation doc.
+  - Read it for syntax, control flow, functions, and general language feel.
+
+- `Python data structures`
+  - Read this to understand lists, tuples, dicts, and sets well enough to answer interview questions quickly.
+
+- `Python control flow`
+  - Read this for loops, conditionals, iteration style, and function behavior.
+
+- `Python classes`
+  - Read this for the basic object model and how methods behave.
+
+- `Python errors and exceptions`
+  - Read this so you can talk clearly about `try`, `except`, and defensive programming.
+
+- `Python modules`
+  - Read this to understand import structure and how Python files become reusable code units.
+
+- `Python functional programming howto`
+  - Read this for iterators, generators, and higher-order function style.
+
+Key terms to know:
+
+- `iterable`
+  - Something you can loop over.
+
+- `iterator`
+  - The object that yields items one at a time.
+
+- `generator`
+  - A lazy iterator usually created with `yield`.
+
+- `mutable`
+  - Can be changed after creation.
+
+- `immutable`
+  - Cannot be changed after creation.
+
+- `module`
+  - A Python file that can be imported.
+
+How to think about this section:
+
+- Python interviews often test clarity more than exotic syntax.
+- Be comfortable with built-ins, functions, data structures, and error handling first.
 
 What to take away:
 
@@ -2792,6 +3259,51 @@ Study these:
 - [MDN preflight request](https://developer.mozilla.org/en-US/docs/Glossary/Preflight_request)
 - [MDN `Set-Cookie`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie)
 
+High-level orientation before you open them:
+
+- `Express routing guide`
+  - Read this to understand how request methods map to handlers and why route structure matters.
+
+- `HTTP methods` and `HTTP status codes`
+  - Read these to get comfortable with request intent and standard error/success signaling.
+  - These are the kinds of things interviewers expect you to explain without hesitation.
+
+- `CORS guide`, `same-origin policy`, and `preflight request`
+  - Read these together.
+  - They explain why a frontend can fail in the browser even when the backend "works" in Postman.
+
+- `Set-Cookie`
+  - Read this to understand cookie flags such as `HttpOnly`, `Secure`, and `SameSite`, and how cookies differ from bearer-token storage patterns.
+
+Key terms to know:
+
+- `origin`
+  - Scheme + host + port.
+
+- `same-origin policy`
+  - Browser rule that restricts how scripts interact across origins.
+
+- `CORS`
+  - Controlled cross-origin access mediated by response headers.
+
+- `preflight`
+  - Browser `OPTIONS` request sent before certain cross-origin requests.
+
+- `header`
+  - Request or response metadata.
+
+- `query parameter`
+  - URL-level input after `?`.
+
+- `body`
+  - Main request payload, often JSON.
+
+How to think about this section:
+
+- Express is the request/response layer.
+- HTTP is about clear contracts.
+- Browser security rules create a lot of "works here, fails there" behavior.
+
 What to take away:
 
 - how routes map to HTTP methods
@@ -2808,6 +3320,41 @@ Study these:
 - [Azure App Service configuration basics](https://learn.microsoft.com/en-us/azure/app-service/configure-common)
 - [Azure SQL serverless / auto-pause](https://learn.microsoft.com/en-us/azure/azure-sql/database/serverless-tier-overview?view=azuresql)
 
+High-level orientation before you open them:
+
+- `Azure App Service app settings` and `configuration basics`
+  - Read these to understand how environment variables are injected into the deployed app and why config changes often trigger restarts.
+  - This connects directly to `JWT_SECRET`, `DATABASE_URL`, `PUBLIC_BASE_URL`, `CLIENT_ORIGIN`, `OIDC_*`, and `REDIS_URL`.
+
+- `Azure SQL serverless / auto-pause`
+  - Read this to understand why a managed database can sleep and then wake slowly.
+  - This is one of the key operational explanations behind real login and callback issues in the project.
+
+Key terms to know:
+
+- `app settings`
+  - Environment variables configured in the cloud host.
+
+- `cold start`
+  - Time spent waking or initializing an app or service before it can serve real traffic.
+
+- `auto-pause`
+  - Managed service sleeps when idle and must wake before requests succeed smoothly.
+
+- `liveness`
+  - Is the process up?
+
+- `readiness`
+  - Can the process actually use its dependencies right now?
+
+- `stateless instance`
+  - An app process that does not depend on its own local memory as the only source of important state.
+
+How to think about this section:
+
+- Cloud bugs are often configuration and lifecycle bugs, not just code bugs.
+- A system can be correct in logic and still fail in practice because of dependency wake-up or bad runtime config.
+
 What to take away:
 
 - how environment variables are provided in Azure
@@ -2822,6 +3369,34 @@ Study these:
 - [OWASP Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)
 - [OWASP Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html)
 - [OWASP Cheat Sheet Series index](https://owasp.org/www-project-cheat-sheets/)
+
+High-level orientation before you open them:
+
+- These docs are about safe engineering habits more than framework-specific code.
+- Read them to understand how a good system thinks about credentials, permissions, secrets, and abuse resistance.
+- In this project, that mindset shows up in password hashing, JWT verification, rate limiting, secret cleanup, and the removal of the hardcoded database fallback.
+
+Key terms to know:
+
+- `least privilege`
+  - Give only the access needed, not more.
+
+- `secret rotation`
+  - Replacing credentials after exposure or as part of normal operational hygiene.
+
+- `credential exposure`
+  - A password, token, or connection string being leaked or stored where it should not be.
+
+- `attack surface`
+  - The set of places an attacker can interact with the system.
+
+- `hardening`
+  - Improving the system's defensive posture, even if no bug is actively breaking functionality.
+
+How to think about this section:
+
+- Security is not separate from engineering quality.
+- A lot of mature backend work is simply reducing avoidable risk in authentication, config, and runtime behavior.
 
 What to take away:
 
@@ -2861,6 +3436,10 @@ If you have a little more time, add this second pass:
 Use something like this:
 
 > Brix is a server-authoritative co-op Tetris app I built with React, Express, Socket.IO, Prisma, and Azure SQL. The client only sends user input, while the Node backend owns simulation, room state, scoring, reconnects, and matchmaking. I added guest and account auth, OTP-based registration and reset flows, Google-ready OIDC login, social features like friends and presence, structured logging, and Prisma migrations for deployment. It became a good project not just for gameplay, but for learning realtime systems, auth, cloud deployment, and production-style troubleshooting.
+
+A stronger current version would be:
+
+> Brix is a server-authoritative co-op Tetris app I built with React, Express, Socket.IO, Prisma, Azure SQL, and Redis-backed transient auth state. The client only sends user input, while the Node backend owns simulation, room state, scoring, reconnects, and matchmaking. I added guest and account auth, OTP-based registration and reset flows, Google OIDC login with PKCE, social features like friends and presence, structured logging, Redis-backed auth rate limiting, and Prisma migrations for deployment. It became a strong learning project for realtime systems, auth, cloud deployment, and production-style troubleshooting.
 
 ---
 
@@ -2999,7 +3578,30 @@ What it shows:
 - practical responsive UI debugging;
 - ability to balance information density with usability.
 
-### 18.5 Plausible Story: Duplicate Friend Request Race Condition
+### 18.5 Real Story: Redis URL Scheme Mismatch Caused SSL Errors
+
+Symptom:
+
+- the local backend started, but Redis kept logging SSL errors instead of connecting cleanly.
+
+Root cause:
+
+- the Redis connection string used the wrong scheme or TLS expectation for the Redis Cloud endpoint;
+- the app was trying to negotiate the wrong transport mode for that host and port combination.
+
+How to explain the fix:
+
+- I inspected the exact `REDIS_URL` format and compared it with the provider's connection instructions;
+- corrected the connection URI;
+- restarted the backend and verified the startup logs changed from repeated SSL errors to `redis connected` and `redis warmup succeeded`.
+
+What it shows:
+
+- practical dependency-debugging ability;
+- awareness that cloud connection strings are part of runtime correctness, not just deployment paperwork;
+- ability to use startup/readiness logs to validate infrastructure fixes.
+
+### 18.6 Plausible Story: Duplicate Friend Request Race Condition
 
 This is a very believable story for this codebase.
 
@@ -3024,7 +3626,7 @@ What it shows:
 - understanding of concurrency in product workflows;
 - comfort with relational uniqueness and transactions.
 
-### 18.6 Plausible Story: Stale Socket Still Appeared Online After Reconnect
+### 18.7 Plausible Story: Stale Socket Still Appeared Online After Reconnect
 
 Possible symptom:
 
@@ -3047,7 +3649,7 @@ What it shows:
 - ability to debug in-memory realtime state;
 - understanding of lifecycle order in websocket systems.
 
-### 18.7 Plausible Story: Practice Bot Caused Unexpected Overlap or Soft Lock
+### 18.8 Plausible Story: Practice Bot Caused Unexpected Overlap or Soft Lock
 
 Possible symptom:
 
@@ -3069,7 +3671,7 @@ What it shows:
 - ability to debug deterministic simulation;
 - using tests to lock in a fix.
 
-### 18.8 Plausible Story: Session Restore Looked Fine in HTTP but Failed on Socket
+### 18.9 Plausible Story: Session Restore Looked Fine in HTTP but Failed on Socket
 
 Possible symptom:
 
@@ -3091,7 +3693,7 @@ What it shows:
 
 - understanding that different transports can fail differently even when they share auth concepts.
 
-### 18.9 Plausible Story: Leaderboard Looked "Wrong" Even Though the Data Was Correct
+### 18.10 Plausible Story: Leaderboard Looked "Wrong" Even Though the Data Was Correct
 
 Possible symptom:
 
@@ -3113,7 +3715,7 @@ What it shows:
 - product debugging, not just technical debugging;
 - ability to reason about expected behavior vs actual behavior.
 
-### 18.10 How To Tell These Stories Well
+### 18.11 How To Tell These Stories Well
 
 A good bug story usually has this shape:
 
