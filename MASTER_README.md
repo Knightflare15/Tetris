@@ -2,6 +2,8 @@
 
 This document is the "know your stuff" guide for the Brix project. It is meant to help you explain the codebase clearly, answer interview follow-up questions, and know which topics to study more deeply online.
 
+It is also meant to be self-sufficient enough that, if you study it properly, you should not need a separate project-prep document for interviews. The external links are there to reinforce weak areas, not because the README is incomplete without them.
+
 Use this file for three things:
 
 1. Understand what the project actually does.
@@ -1842,7 +1844,204 @@ Likely categories:
 - excessive copying
 - recursion or memory growth issues
 
-### 11.5 How To Sound Strong in Scenario Questions
+### 11.5 Okta-Style Debugging Scenarios With Strong Answers
+
+These are especially useful for an Okta, identity, customer-support, or developer-support interview. The interviewer may describe a broken login, broken integration, or confused customer. Your job is to sound systematic, not magical.
+
+#### A. "A customer says Google or Okta SSO redirects back, but the app says login failed."
+
+Strong answer:
+
+> I would split the flow into provider success and application success. First I would check whether the user completed the provider login and whether the app callback endpoint was reached. Then I would inspect the callback logs, because after the provider returns an authorization code, my backend still has to validate state, exchange the code for tokens, validate the ID token, link or create the local user, and issue my own app JWT. If provider login succeeded but local login failed, I would check database connectivity, redirect URI config, client secret config, issuer/audience validation, and whether the OIDC temporary state expired.
+
+Likely root causes:
+
+- `redirect_uri` mismatch;
+- missing or wrong client secret;
+- wrong issuer or client ID;
+- lost `state` / PKCE verifier;
+- database unavailable during user linking;
+- app callback route failing after the provider step.
+
+What makes this a good answer:
+
+- you do not say "SSO is broken" as one vague thing;
+- you separate identity-provider behavior from application-session behavior;
+- you understand that the app still has work to do after the redirect.
+
+#### B. "The customer gets `invalid_redirect_uri` or `invalid_request`."
+
+Strong answer:
+
+> I would compare the exact redirect URI sent in the authorization request with the URI registered in the identity provider console. Exact means scheme, host, port, path, and trailing slash. In this project that means verifying `PUBLIC_BASE_URL`, the callback path, and the value configured in Google Cloud or Okta. I would also check that production uses `https://` and not a bare hostname.
+
+Likely root causes:
+
+- `tmason.azurewebsites.net/...` used instead of `https://tmason.azurewebsites.net/...`;
+- local callback URI registered but production callback used;
+- path mismatch such as `/auth/oidc/callback` vs `/auth/callback`;
+- stale environment variables after deployment.
+
+Prevention:
+
+- document the exact callback URI;
+- keep separate local and production OAuth clients if needed;
+- log the generated redirect URI in non-sensitive debug mode.
+
+#### C. "The app returns 401 for a user who says they are logged in."
+
+Strong answer:
+
+> I would first determine whether this is authentication or authorization. A 401 usually means the app cannot prove who the user is: missing token, expired token, malformed token, wrong signing secret, or token not sent on the request. I would inspect the browser request, check the `Authorization` header or cookie, verify token expiry, and confirm the backend is using the same JWT secret that issued the token.
+
+Likely root causes:
+
+- stale local token;
+- missing `Authorization: Bearer ...` header;
+- websocket handshake not receiving `handshake.auth.token`;
+- app restarted with a different JWT secret;
+- token expired but frontend did not clear session state.
+
+How to connect it to your project:
+
+- REST auth uses middleware around the JWT;
+- Socket.IO auth uses `io.use(...)` and reads `socket.handshake.auth.token`;
+- those are separate transport paths, so one can fail while the other appears fine.
+
+#### D. "The app returns 403 even though login succeeds."
+
+Strong answer:
+
+> A 403 means identity is known but the user does not have permission for that action. I would check the user's role, account state, feature entitlement, and the route-level authorization rules. In my project, guest users intentionally cannot access social features like friends and leaderboard persistence, so a guest getting blocked from those routes would be expected behavior rather than a broken login.
+
+Likely root causes:
+
+- guest user trying to access account-only social features;
+- role claim missing from JWT;
+- user exists but is not assigned to the required group or app;
+- backend route correctly rejects a known but unauthorized user.
+
+Professional framing:
+
+- 401: "Who are you?"
+- 403: "I know who you are, but you cannot do this."
+
+#### E. "OIDC callback fails with state mismatch or expired request."
+
+Strong answer:
+
+> I would treat `state` as CSRF protection and request correlation. The app creates a random state when the flow starts, stores it temporarily, sends it to the provider, and verifies the same value on callback. If it is missing or mismatched, I would suspect expired temporary state, app restart, wrong Redis connection, multiple browser tabs, or a callback hitting a different app instance without shared state.
+
+Likely root causes:
+
+- Redis unavailable and memory fallback lost state after restart;
+- state TTL expired;
+- user opened multiple login flows and returned with an older one;
+- load-balanced callbacks hitting an instance that does not have the in-memory state;
+- wrong public URL or callback route.
+
+How your project improved this:
+
+- OIDC temporary state was moved behind the transient store;
+- Redis can preserve it across a process restart or future multiple instances better than memory alone;
+- the app still has memory fallback for local/dev resilience.
+
+#### F. "A customer says login is slow only the first time after inactivity."
+
+Strong answer:
+
+> I would check whether this is a cold-start or dependency wake-up issue rather than an auth algorithm issue. In this project, Google could successfully authenticate the user, but the local callback still needed Azure SQL to find or create the app user. If Azure SQL was auto-paused, the first callback could be slow or fail. I would inspect app logs, database availability, dependency latency, and readiness checks.
+
+Likely root causes:
+
+- Azure App Service cold start;
+- Azure SQL auto-pause/wake-up delay;
+- Redis or email provider connection warmup;
+- DNS/TLS connection setup on first request.
+
+Prevention:
+
+- readiness endpoint that checks critical dependencies;
+- clearer user-facing retry message;
+- avoid auto-pause for production if reliability matters;
+- warmup pings if acceptable for the hosting plan.
+
+#### G. "WebSocket game fails after successful login."
+
+Strong answer:
+
+> I would not assume REST login and WebSocket login are identical. The REST path may issue or verify the JWT correctly, but the socket connection has its own handshake. I would check the socket `connect_error`, confirm the client sends the token inside `handshake.auth`, and verify the server-side Socket.IO middleware accepts the same token format.
+
+Likely root causes:
+
+- token exists in app state but was not passed to Socket.IO;
+- token expired between REST restore and socket connect;
+- origin or hosting config blocks websocket upgrade;
+- backend middleware rejects guest/account token differences;
+- app deployed behind a proxy without correct websocket support.
+
+How to explain the project link:
+
+- REST routes answer normal HTTP requests;
+- Socket.IO maintains realtime game communication;
+- both use JWT ideas, but they travel through different protocol paths.
+
+#### H. "Users report duplicate friend requests or inconsistent friend state."
+
+Strong answer:
+
+> I would suspect a race condition or missing idempotency. If two users send reverse requests at nearly the same time, the correct final state should be a single friendship, not two pending rows or conflicting transitions. I would inspect unique constraints, reverse-request lookup, and whether friendship creation and request update are wrapped in a database transaction.
+
+Likely root causes:
+
+- concurrent reverse requests;
+- create-then-check logic instead of transaction/upsert;
+- missing uniqueness constraint for sender/receiver pair;
+- repeated API calls from double-clicks or retries.
+
+Strong fix direction:
+
+- normalize request direction where possible;
+- use transaction or idempotent upsert;
+- add unique constraints;
+- return the same final result for repeated equivalent requests.
+
+#### I. "Rate limiting blocks valid login attempts."
+
+Strong answer:
+
+> I would check what key the rate limiter uses and whether it is too broad. If all users behind a campus NAT, proxy, or mobile network appear under one IP, IP-only rate limits can block valid users. I would inspect Redis counters, TTLs, route-specific limits, and whether failed attempts are being counted differently from successful attempts.
+
+Likely root causes:
+
+- rate limit key based only on IP;
+- proxy not trusted correctly, so many users collapse to one address;
+- too strict limits on SSO start or OTP routes;
+- Redis keys not expiring as expected.
+
+Better design:
+
+- combine IP-based limits with username/email-specific limits where appropriate;
+- keep auth routes protected but avoid blocking normal retries too aggressively;
+- expose safe logs for limit reason and reset time.
+
+#### J. "Customer asks whether the system is secure because it uses JWT."
+
+Strong answer:
+
+> JWT is a token format, not security by itself. Security depends on signing, expiry, storage, transport, validation, and revocation strategy. In this project, JWTs let the backend authenticate REST and socket requests without storing server-side sessions, but future production hardening would include short-lived access tokens, refresh-token rotation, cookie-based storage, CSRF protections if cookies are used, and revocation support for logout or compromised accounts.
+
+Key terms to mention:
+
+- signed token;
+- expiry;
+- issuer/audience validation;
+- token storage risk;
+- refresh-token rotation;
+- revocation list or session version;
+- HTTPS-only transport.
+
+### 11.6 How To Sound Strong in Scenario Questions
 
 Good answer style:
 
@@ -1863,6 +2062,799 @@ Good sentence patterns:
 - "Then I'd separate frontend failure from backend failure using logs and the network tab."
 - "If the external provider succeeded, I would next check the local callback path and database dependency."
 - "I would treat configuration, connectivity, and state management as separate possible failure layers."
+
+Reusable Okta-style answer pattern:
+
+> I would first identify whether this is failing before authentication, during provider login, during the callback, during local user/session creation, or during authorization after login. Then I would check the smallest boundary that can prove or disprove each layer: browser request, provider error, backend callback logs, database/Redis health, and token validation.
+
+### 11.7 Practical Code Debugging Drills: JavaScript and Python
+
+Use these like mini interview exercises. First read the broken code and say what is wrong. Then read the answer. The goal is to avoid freezing when an interviewer shares a small snippet and asks, "What is the bug?"
+
+#### JavaScript Drill 1: `var` closure bug in async callbacks
+
+Broken code:
+
+```js
+for (var i = 0; i < 3; i++) {
+  setTimeout(() => {
+    console.log(i);
+  }, 100);
+}
+```
+
+What happens:
+
+- prints `3`, `3`, `3`
+
+Bug:
+
+- `var` is function-scoped, so every callback closes over the same `i`;
+- by the time callbacks run, the loop has finished and `i` is `3`.
+
+Fixed code:
+
+```js
+for (let i = 0; i < 3; i++) {
+  setTimeout(() => {
+    console.log(i);
+  }, 100);
+}
+```
+
+How to explain:
+
+- `let` creates a new block-scoped binding per loop iteration, so each callback remembers the correct value.
+
+#### JavaScript Drill 2: Async `map` without `Promise.all`
+
+Broken code:
+
+```js
+async function loadUsers(ids) {
+  const users = ids.map(async (id) => {
+    const res = await fetch(`/api/users/${id}`);
+    return res.json();
+  });
+
+  return users;
+}
+```
+
+Bug:
+
+- `map(async ...)` returns an array of Promises, not actual user objects.
+
+Fixed code:
+
+```js
+async function loadUsers(ids) {
+  const users = await Promise.all(
+    ids.map(async (id) => {
+      const res = await fetch(`/api/users/${id}`);
+      return res.json();
+    })
+  );
+
+  return users;
+}
+```
+
+How to explain:
+
+- `async` functions always return Promises;
+- `Promise.all` waits for all of them and gives the resolved values.
+
+#### JavaScript Drill 3: Missing `return` after sending an Express response
+
+Broken code:
+
+```js
+app.post("/login", async (req, res) => {
+  const user = await findUser(req.body.username);
+
+  if (!user) {
+    res.status(401).json({ error: "Invalid credentials" });
+  }
+
+  const token = signToken(user);
+  res.json({ token });
+});
+```
+
+Bug:
+
+- after sending the 401 response, the function continues;
+- it may try to sign a token for `undefined` or send a second response.
+
+Fixed code:
+
+```js
+app.post("/login", async (req, res) => {
+  const user = await findUser(req.body.username);
+
+  if (!user) {
+    return res.status(401).json({ error: "Invalid credentials" });
+  }
+
+  const token = signToken(user);
+  return res.json({ token });
+});
+```
+
+How to explain:
+
+- in Express, `res.json(...)` sends a response but does not automatically stop your handler;
+- use `return` or an `else` branch to prevent fall-through.
+
+#### JavaScript Drill 4: `this` lost when passing a method as callback
+
+Broken code:
+
+```js
+const counter = {
+  value: 0,
+  increment() {
+    this.value += 1;
+  }
+};
+
+setTimeout(counter.increment, 100);
+```
+
+Bug:
+
+- `counter.increment` is passed as a standalone function;
+- `this` no longer points to `counter`.
+
+Fixed code:
+
+```js
+setTimeout(() => counter.increment(), 100);
+```
+
+Alternative:
+
+```js
+setTimeout(counter.increment.bind(counter), 100);
+```
+
+How to explain:
+
+- regular function `this` depends on call-site;
+- the method must be called as `counter.increment()` or bound explicitly.
+
+#### JavaScript Drill 5: Shallow copy accidentally mutates nested state
+
+Broken code:
+
+```js
+const user = {
+  name: "Aryan",
+  settings: { theme: "dark" }
+};
+
+const copy = { ...user };
+copy.settings.theme = "light";
+
+console.log(user.settings.theme);
+```
+
+What happens:
+
+- prints `"light"`
+
+Bug:
+
+- object spread makes a shallow copy;
+- `settings` is still the same nested object reference.
+
+Fixed code:
+
+```js
+const copy = {
+  ...user,
+  settings: { ...user.settings }
+};
+copy.settings.theme = "light";
+```
+
+How to explain:
+
+- shallow copies only duplicate the outer object;
+- nested objects need their own copy if they will be mutated.
+
+#### JavaScript Drill 6: Event loop order
+
+Code:
+
+```js
+console.log("A");
+
+setTimeout(() => console.log("B"), 0);
+
+Promise.resolve().then(() => console.log("C"));
+
+console.log("D");
+```
+
+Output:
+
+```text
+A
+D
+C
+B
+```
+
+Why:
+
+- synchronous code runs first: `A`, `D`;
+- Promise callbacks are microtasks, so `C` runs before timers;
+- `setTimeout` callback is a macrotask, so `B` runs after microtasks.
+
+Interview trap:
+
+- `setTimeout(..., 0)` does not mean "run immediately";
+- it means "schedule for a later macrotask."
+
+#### JavaScript Drill 7: Checking an array with truthiness
+
+Broken code:
+
+```js
+function firstFriend(friends) {
+  if (!friends) {
+    return "No friends";
+  }
+
+  return friends[0].name;
+}
+
+firstFriend([]);
+```
+
+Bug:
+
+- empty arrays are truthy in JavaScript;
+- `friends[0]` is `undefined`, so reading `.name` throws.
+
+Fixed code:
+
+```js
+function firstFriend(friends) {
+  if (!Array.isArray(friends) || friends.length === 0) {
+    return "No friends";
+  }
+
+  return friends[0].name;
+}
+```
+
+How to connect to frontend work:
+
+- UI code often breaks because "loaded but empty" and "not loaded yet" are different states.
+
+#### JavaScript Drill 8: Race condition from non-atomic read-modify-write
+
+Broken code:
+
+```js
+let count = 0;
+
+async function increment() {
+  const current = count;
+  await slowOperation();
+  count = current + 1;
+}
+
+await Promise.all([increment(), increment()]);
+console.log(count);
+```
+
+Possible output:
+
+```text
+1
+```
+
+Bug:
+
+- both calls read `count` as `0`;
+- both write back `1`;
+- one increment is lost.
+
+Better direction:
+
+```js
+let count = 0;
+
+async function increment() {
+  await slowOperation();
+  count += 1;
+}
+```
+
+Production version:
+
+- for database or Redis counters, use atomic operations or transactions;
+- in Redis this could be `INCR`;
+- in SQL this could be an atomic update or transaction.
+
+How to connect to this project:
+
+- friend request acceptance and rate limiting are places where idempotency or atomic operations matter.
+
+#### JavaScript Drill 9: Forgetting to handle failed HTTP responses
+
+Broken code:
+
+```js
+async function getProfile() {
+  const res = await fetch("/auth/me");
+  return res.json();
+}
+```
+
+Bug:
+
+- `fetch` only rejects on network failure;
+- a `401` or `500` response still resolves;
+- the caller may treat an error payload as a valid profile.
+
+Fixed code:
+
+```js
+async function getProfile() {
+  const res = await fetch("/auth/me");
+
+  if (!res.ok) {
+    throw new Error(`Profile request failed with ${res.status}`);
+  }
+
+  return res.json();
+}
+```
+
+How to explain:
+
+- always distinguish transport success from application success;
+- this is similar to distinguishing provider login success from local app session success.
+
+#### JavaScript Drill 10: Socket listener added repeatedly
+
+Broken React-style code:
+
+```js
+function Game({ socket }) {
+  const [snapshot, setSnapshot] = useState(null);
+
+  useEffect(() => {
+    socket.on("snapshot", (next) => {
+      setSnapshot(next);
+    });
+  }, [snapshot]);
+
+  return <Board snapshot={snapshot} />;
+}
+```
+
+Bug:
+
+- every snapshot changes state;
+- state change reruns the effect;
+- a new listener is added repeatedly;
+- this can cause duplicate updates and memory leaks.
+
+Fixed code:
+
+```js
+function Game({ socket }) {
+  const [snapshot, setSnapshot] = useState(null);
+
+  useEffect(() => {
+    const handleSnapshot = (next) => {
+      setSnapshot(next);
+    };
+
+    socket.on("snapshot", handleSnapshot);
+
+    return () => {
+      socket.off("snapshot", handleSnapshot);
+    };
+  }, [socket]);
+
+  return <Board snapshot={snapshot} />;
+}
+```
+
+How to explain:
+
+- effects that register subscriptions need cleanup;
+- dependency arrays should track the thing being subscribed to, not the state changed by the subscription.
+
+#### Python Drill 1: Mutable default argument
+
+Broken code:
+
+```python
+def add_item(item, items=[]):
+    items.append(item)
+    return items
+
+print(add_item("a"))
+print(add_item("b"))
+```
+
+Output:
+
+```text
+['a']
+['a', 'b']
+```
+
+Bug:
+
+- default arguments are evaluated once when the function is defined;
+- the same list is reused across calls.
+
+Fixed code:
+
+```python
+def add_item(item, items=None):
+    if items is None:
+        items = []
+    items.append(item)
+    return items
+```
+
+How to explain:
+
+- use `None` as the default sentinel for mutable values.
+
+#### Python Drill 2: Using `is` instead of `==`
+
+Broken code:
+
+```python
+def is_admin(role):
+    return role is "admin"
+```
+
+Bug:
+
+- `is` checks object identity, not value equality;
+- string interning may make this appear to work sometimes, which is dangerous.
+
+Fixed code:
+
+```python
+def is_admin(role):
+    return role == "admin"
+```
+
+How to explain:
+
+- use `==` for value comparison;
+- use `is` for singletons like `None`.
+
+#### Python Drill 3: Broad `except` hides the real bug
+
+Broken code:
+
+```python
+def parse_score(value):
+    try:
+        return int(value)
+    except:
+        return 0
+```
+
+Bug:
+
+- catches every exception, including unexpected programmer errors;
+- can hide issues you should fix.
+
+Better code:
+
+```python
+def parse_score(value):
+    try:
+        return int(value)
+    except ValueError:
+        return 0
+```
+
+Even safer if `None` is possible:
+
+```python
+def parse_score(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+```
+
+How to explain:
+
+- catch specific exceptions so unexpected failures remain visible.
+
+#### Python Drill 4: Modifying a list while iterating over it
+
+Broken code:
+
+```python
+nums = [1, 2, 3, 4, 5]
+
+for n in nums:
+    if n % 2 == 0:
+        nums.remove(n)
+
+print(nums)
+```
+
+Bug:
+
+- mutating a list while iterating can skip elements or behave unexpectedly.
+
+Fixed code:
+
+```python
+nums = [1, 2, 3, 4, 5]
+nums = [n for n in nums if n % 2 != 0]
+print(nums)
+```
+
+How to explain:
+
+- build a new filtered list instead of changing the list during iteration.
+
+#### Python Drill 5: Late binding in closures
+
+Broken code:
+
+```python
+funcs = []
+
+for i in range(3):
+    funcs.append(lambda: i)
+
+print([fn() for fn in funcs])
+```
+
+Output:
+
+```text
+[2, 2, 2]
+```
+
+Bug:
+
+- lambdas close over the variable `i`, not its value at the time;
+- after the loop, `i` is `2`.
+
+Fixed code:
+
+```python
+funcs = []
+
+for i in range(3):
+    funcs.append(lambda i=i: i)
+
+print([fn() for fn in funcs])
+```
+
+How to explain:
+
+- the default argument captures the current value for each iteration.
+
+#### Python Drill 6: Inefficient membership check
+
+Slow code:
+
+```python
+def count_matches(items, allowed):
+    count = 0
+    for item in items:
+        if item in allowed:
+            count += 1
+    return count
+```
+
+Issue:
+
+- if `allowed` is a list, `item in allowed` is O(n);
+- total complexity can become O(n * m).
+
+Better code:
+
+```python
+def count_matches(items, allowed):
+    allowed_set = set(allowed)
+    count = 0
+
+    for item in items:
+        if item in allowed_set:
+            count += 1
+
+    return count
+```
+
+How to explain:
+
+- set membership is O(1) average case;
+- convert once, then do fast lookups.
+
+#### Python Drill 7: Shallow copy of nested lists
+
+Broken code:
+
+```python
+board = [[0] * 3] * 3
+board[0][0] = 1
+print(board)
+```
+
+Output:
+
+```text
+[[1, 0, 0], [1, 0, 0], [1, 0, 0]]
+```
+
+Bug:
+
+- all rows reference the same inner list.
+
+Fixed code:
+
+```python
+board = [[0 for _ in range(3)] for _ in range(3)]
+board[0][0] = 1
+print(board)
+```
+
+How to connect to game logic:
+
+- grid/board state bugs often come from shared nested references.
+
+#### Python Drill 8: Sorting numbers stored as strings
+
+Broken code:
+
+```python
+scores = ["100", "20", "3"]
+print(sorted(scores))
+```
+
+Output:
+
+```text
+['100', '20', '3']
+```
+
+Bug:
+
+- strings sort lexicographically, not numerically.
+
+Fixed code:
+
+```python
+scores = ["100", "20", "3"]
+print(sorted(scores, key=int))
+```
+
+Output:
+
+```text
+['3', '20', '100']
+```
+
+How to explain:
+
+- use `key=` to control how values are compared during sorting.
+
+#### Python Drill 9: Recursive DFS hits recursion limit
+
+Risky code:
+
+```python
+def dfs(node, graph, seen):
+    if node in seen:
+        return
+
+    seen.add(node)
+
+    for nxt in graph[node]:
+        dfs(nxt, graph, seen)
+```
+
+Potential bug:
+
+- deep graphs can hit Python's recursion limit.
+
+Iterative version:
+
+```python
+def dfs(start, graph):
+    seen = set()
+    stack = [start]
+
+    while stack:
+        node = stack.pop()
+        if node in seen:
+            continue
+
+        seen.add(node)
+        stack.extend(graph[node])
+
+    return seen
+```
+
+How to explain:
+
+- recursive DFS is elegant but can fail on deep inputs;
+- iterative DFS avoids recursion-depth issues.
+
+#### Python Drill 10: Shared class variable mistaken for instance state
+
+Broken code:
+
+```python
+class User:
+    roles = []
+
+    def __init__(self, name):
+        self.name = name
+
+    def add_role(self, role):
+        self.roles.append(role)
+
+a = User("A")
+b = User("B")
+
+a.add_role("admin")
+print(b.roles)
+```
+
+Output:
+
+```text
+['admin']
+```
+
+Bug:
+
+- `roles` is a class variable shared by all instances.
+
+Fixed code:
+
+```python
+class User:
+    def __init__(self, name):
+        self.name = name
+        self.roles = []
+
+    def add_role(self, role):
+        self.roles.append(role)
+```
+
+How to explain:
+
+- put per-object mutable state on `self`;
+- class variables are shared across instances.
+
+#### Practical Debugging Drill Checklist
+
+When shown unfamiliar code, ask:
+
+1. What is the expected output?
+2. What is the actual output or exception?
+3. Is this a scope, async, mutation, type, or data-structure bug?
+4. Is state being shared accidentally?
+5. Is error handling hiding the real failure?
+6. Is the code correct on small input but slow on large input?
+7. Is this transport success vs application success?
+8. Does the fix need a local code change, a transaction, an atomic operation, or better validation?
 
 ---
 
@@ -3428,6 +4420,434 @@ If you have a little more time, add this second pass:
 12. cookies vs JWT vs browser storage
 13. transactions, indexes, and relational modeling
 14. cold starts, auto-pause, and stateless deployment concepts
+
+---
+
+## 14.1 How To Use This Document As Your Main Interview Prep
+
+If you want this README to be your main prep artifact, use it in three passes:
+
+### Pass 1: Build the map
+
+Goal:
+
+- understand what systems exist;
+- understand what is frontend, backend, shared engine, database, Redis, and deployment;
+- understand what actually happened in the project.
+
+What to read:
+
+- sections 1 through 10
+- the architecture, auth, Redis, limitations, and scalability sections
+
+What to produce:
+
+- a 1-minute project summary
+- a 3-minute project walkthrough
+
+### Pass 2: Build explanation fluency
+
+Goal:
+
+- stop merely recognizing concepts and start explaining them cleanly.
+
+What to read:
+
+- section 12 interview question bank
+- section 15 one-minute project description
+- section 16 OIDC explanation
+- section 17 and 18 bug stories
+
+What to produce:
+
+- spoken answers out loud, not silent reading
+- clean answers for:
+  - project summary
+  - server-authoritative design
+  - auth flow
+  - Redis usage
+  - Prisma migration story
+  - Azure SQL auto-pause story
+
+### Pass 3: Build interviewer resilience
+
+Goal:
+
+- be ready even if the interviewer ignores your project and asks scenarios or fundamentals instead.
+
+What to read:
+
+- section 11 debugging framework
+- section 11.7 practical code debugging drills
+- section 13 curated study sections
+- JavaScript and Python rapid-fire sections
+
+What to produce:
+
+- 10 short JS answers
+- 10 short Python answers
+- 6 practical code-debugging fixes
+- 5 scenario answers
+- 4 bug stories
+
+Important rule:
+
+- Do not just read this file passively.
+- Every major section should turn into a spoken explanation, because interviews reward retrieval and clarity more than recognition.
+
+If time is very limited:
+
+- you can skip deep external reading and still get a lot of value from this document alone;
+- use the external links only where a topic still feels shaky after reading the README explanation.
+
+---
+
+## 14.2 Compressed Prep Plan: Tuesday 8pm to Thursday 10am
+
+This plan matches the real window: from 8:00pm on Tuesday, May 26, 2026 to 10:00am on Thursday, May 28, 2026. It protects sleep, rest, and LeetCode review because tired recall is bad recall.
+
+Total available calendar time:
+
+- about 38 hours.
+
+Recommended actual focused study time:
+
+- 13 to 16 hours for project, concepts, and scenario prep;
+- 2 to 3 hours for LeetCode review;
+- 13 to 15 hours for sleep;
+- the rest for meals, breaks, getting ready, and mental reset.
+
+### Tuesday Night: Build the Interview Map
+
+Time:
+
+- 8:00pm to 12:15am.
+
+Goal:
+
+- understand the whole project at system level;
+- prepare the answers you are most likely to say out loud.
+
+Block 1, 8:00pm to 9:15pm:
+
+- sections 1 to 4;
+- high-level architecture;
+- frontend vs backend vs database vs Redis vs Azure;
+- one-minute project summary.
+
+Block 2, 9:25pm to 10:40pm:
+
+- server-authoritative gameplay;
+- input -> tick -> simulation -> snapshot;
+- why the server owns game state;
+- latency and fairness tradeoffs.
+
+Block 3, 10:50pm to 11:45pm:
+
+- auth overview;
+- guest login, account login, Google OIDC;
+- JWT use in REST and Socket.IO;
+- Redis transient state.
+
+Block 4, 11:45pm to 12:15am:
+
+- say these aloud once:
+  - your intro;
+  - 1-minute project summary;
+  - why server-authoritative design;
+  - OIDC flow in plain English.
+
+Stop rule:
+
+- stop around 12:15am even if it feels unfinished. Sleep will do more for recall than another anxious hour.
+
+### Wednesday Morning: Own Auth, Identity, and Web Fundamentals
+
+Time:
+
+- 8:00am to 12:30pm.
+
+Goal:
+
+- become fluent on the parts most relevant to Okta-style questioning.
+
+Block 1, 8:00am to 9:20am:
+
+- OIDC;
+- PKCE;
+- state and nonce;
+- redirect URI;
+- issuer, audience, subject;
+- app JWT vs provider token.
+
+Block 2, 9:30am to 10:30am:
+
+- HTTP methods;
+- headers vs query params vs body;
+- cookies vs bearer tokens;
+- CORS, origin, same-origin policy, preflight.
+
+Block 3, 10:40am to 11:40am:
+
+- Prisma schema;
+- migrations;
+- baselining;
+- Azure SQL auto-pause;
+- Redis role and limitations.
+
+Block 4, 11:45am to 12:30pm:
+
+- section 11.5 Okta-style scenarios;
+- answer 4 scenarios out loud without reading word-for-word.
+
+### Wednesday Afternoon: Code Walkthrough Without Drowning
+
+Time:
+
+- 2:00pm to 5:30pm.
+
+Goal:
+
+- know where things happen in code without trying to memorize every line.
+
+Code order:
+
+1. [src/server/index.ts](C:/Users/Aryan/Tetris/src/server/index.ts)
+2. [src/server/authService.ts](C:/Users/Aryan/Tetris/src/server/authService.ts)
+3. [src/server/oidcService.ts](C:/Users/Aryan/Tetris/src/server/oidcService.ts)
+4. [src/server/roomManager.ts](C:/Users/Aryan/Tetris/src/server/roomManager.ts)
+5. [src/shared/engine.ts](C:/Users/Aryan/Tetris/src/shared/engine.ts)
+6. [src/client/useBrixGame.ts](C:/Users/Aryan/Tetris/src/client/useBrixGame.ts)
+7. [src/client/App.tsx](C:/Users/Aryan/Tetris/src/client/App.tsx)
+8. [prisma/schema.prisma](C:/Users/Aryan/Tetris/prisma/schema.prisma)
+
+What to extract from each file:
+
+- what this file owns;
+- the top 3 functions or routes;
+- what data enters;
+- what data leaves;
+- what can fail.
+
+Do not try to read CSS or every component deeply unless you have extra time. For interview prep, the backend/auth/realtime path has higher value.
+
+### Wednesday Evening: Scenario and Language Drill
+
+Time:
+
+- 6:45pm to 10:15pm.
+
+Goal:
+
+- be ready if the interviewer ignores the project and asks practical JS/Python/debugging.
+
+Block 1, 6:45pm to 7:45pm:
+
+- JavaScript rapid-fire;
+- JavaScript practical debugging drills from section 11.7;
+- event loop;
+- promises;
+- microtasks vs macrotasks;
+- closures;
+- `this`;
+- async/await error handling.
+
+Block 2, 7:55pm to 8:45pm:
+
+- Python rapid-fire;
+- Python practical debugging drills from section 11.7;
+- lists vs tuples;
+- dict/set complexity;
+- generators;
+- decorators;
+- exceptions;
+- basic OOP;
+- common DSA implementation patterns.
+
+Block 3, 9:00pm to 9:45pm:
+
+- section 11.7 practical code drills you missed;
+- section 18 bug stories;
+- tell 3 real stories and 2 plausible stories aloud.
+
+Block 4, 9:45pm to 10:15pm:
+
+- LeetCode review only;
+- review solved patterns, not new hard problems.
+
+Stop rule:
+
+- stop by 10:30pm to 11:00pm. The final morning should feel like revision, not recovery.
+
+### Thursday Morning: Final Recall and LeetCode Warmup
+
+Time:
+
+- 7:00am to 10:00am.
+
+Goal:
+
+- sharpen recall, do not learn large new topics.
+
+Block 1, 7:00am to 7:45am:
+
+- your intro;
+- project summary;
+- why this project fits Okta/customer identity/support engineering.
+
+Block 2, 7:50am to 8:35am:
+
+- OIDC flow;
+- JWT;
+- 401 vs 403;
+- redirect URI;
+- state/nonce/PKCE;
+- CORS/preflight.
+
+Block 3, 8:40am to 9:20am:
+
+- LeetCode pattern review:
+  - arrays/hashmaps;
+  - two pointers;
+  - sliding window;
+  - stacks/queues;
+  - BFS/DFS;
+  - binary search;
+  - heap if relevant.
+
+Block 4, 9:20am to 9:45am:
+
+- 3 debugging scenarios:
+  - SSO callback failed;
+  - websocket works locally but not in prod;
+  - DB unavailable or slow after inactivity.
+
+Final 15 minutes:
+
+- no heavy studying;
+- skim only your intro and the one-minute project description;
+- let your brain settle.
+
+### Time Estimate For README Plus Code
+
+Because you already know about 50 percent of the material:
+
+- fast README skim: 2.5 to 3.5 hours;
+- serious README study with speaking practice: 6.5 to 8.5 hours;
+- focused code walkthrough using the file order above: 3 to 5 hours;
+- JS/Python rapid-fire plus practical code debugging revision: 3 to 4 hours;
+- debugging and bug-story rehearsal: 1.5 to 2.5 hours;
+- LeetCode solved-question review: 2 to 3 hours.
+
+Realistic total:
+
+- 14 to 18 focused hours to feel solid;
+- 20+ hours only if you deep-read almost every code path.
+
+Best target for this window:
+
+- do one serious README pass;
+- do one focused code pass through the core files;
+- solve or explain at least 10 practical code debugging drills;
+- rehearse 8 to 10 spoken answers;
+- review solved LeetCode patterns;
+- sleep enough to retrieve all of it.
+
+---
+
+## 14.3 Daily Speaking Checklist
+
+Every day, say these out loud at least once:
+
+1. who you are and what kind of work you want to do
+2. what the project does
+3. why it is server-authoritative
+4. how local auth works
+5. how Google OIDC works
+6. what Redis is doing right now
+7. what is still in memory
+8. how you would scale it
+9. one real bug story
+10. one scenario-style debugging answer
+
+This matters because interview readiness is not just knowledge. It is being able to retrieve and explain that knowledge cleanly.
+
+---
+
+## 14.4 Final Mastery Checklist
+
+If you can do these without notes, this README has probably done its job:
+
+### Project
+
+- explain the architecture in under 3 minutes
+- explain where the source of truth lives
+- explain what is durable vs transient
+- explain what Redis does right now
+- explain what still breaks at multiple instances
+
+### Auth and identity
+
+- explain guest vs account vs OIDC login
+- explain app JWT vs provider token
+- explain PKCE, state, nonce, and JWKS
+- explain token rotation, revocation, and expiration
+
+### Database and operations
+
+- explain Prisma migrations
+- explain baselining
+- explain Azure SQL auto-pause
+- explain liveness vs readiness
+
+### Realtime
+
+- explain input -> tick -> snapshot flow
+- explain reconnect behavior
+- explain latency tradeoffs in a server-authoritative game
+
+### Web fundamentals
+
+- explain headers vs query params vs body
+- explain cookies vs bearer tokens
+- explain CORS, origin, and preflight
+
+### Language basics
+
+- answer the JavaScript rapid-fire section
+- answer the Python rapid-fire section
+
+### Debugging
+
+- tell 4 bug stories
+- answer 5 scenario questions with symptom -> root cause -> fix -> prevention
+
+If you cannot do one of these, that area becomes the next revision target.
+
+---
+
+## 14.5 If The Interviewer Barely Asks About The Project
+
+This README should still cover you well, because the project sections are not only about features. They also teach:
+
+- auth fundamentals
+- HTTP and websocket behavior
+- SQL and migration reasoning
+- cloud deployment issues
+- Redis and transient-state design
+- debugging structure
+- JS and Python fundamentals
+
+So if the conversation becomes scenario-heavy, use this structure:
+
+1. clarify the symptom
+2. narrow the failing layer
+3. gather signals
+4. form hypotheses
+5. verify one layer at a time
+6. fix and prevent
+
+That exact pattern is already reflected throughout the bug and scenario sections.
 
 ---
 
