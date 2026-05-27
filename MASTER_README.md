@@ -844,7 +844,38 @@ What to understand:
 
 ### 4.26 Docker and Container Thinking
 
-The repo includes a Dockerfile and deployment notes.
+The repo includes a [Dockerfile](C:/Users/Aryan/Tetris/Dockerfile) and [Dockerfile.README.md](C:/Users/Aryan/Tetris/Dockerfile.README.md).
+
+Docker is a way to package an application with its runtime environment so it runs more consistently across machines. Instead of saying "install Node, install dependencies, build this way, run this command," Docker captures that process in an image. A running image is called a container.
+
+Basic terms:
+
+- `image`
+  - A packaged filesystem and runtime template. Think of it as the built artifact.
+
+- `container`
+  - A running instance of an image.
+
+- `Dockerfile`
+  - Instructions for building the image.
+
+- `base image`
+  - The starting point, such as `node:22-alpine`.
+
+- `layer`
+  - Each build step creates a cached layer, which is why copying `package.json` before the whole source tree can speed up dependency installs.
+
+- `port mapping`
+  - The app listens on a port inside the container, and Docker maps it to a host port.
+
+- `environment variables`
+  - Runtime config passed into the container, such as `DATABASE_URL`, `JWT_SECRET`, `PUBLIC_BASE_URL`, and `REDIS_URL`.
+
+- `.dockerignore`
+  - Like `.gitignore`, but for Docker build context. It keeps things like `node_modules`, `.env`, `dist`, and `.git` out of the image build.
+
+- `multi-stage build`
+  - A Dockerfile pattern where one stage builds the app and a smaller final stage runs only the production output.
 
 Important ideas:
 
@@ -852,11 +883,109 @@ Important ideas:
 - Consistent runtime environments are one of the main advantages of containerized deployment, because fewer machine differences leak into behavior.
 - Environment-variable-driven deployment is important because the same container should behave differently depending on where it runs.
 - Single-service hosting works well for this project because the frontend and backend are tightly related and do not require separate infrastructure yet.
+- Docker should not bake secrets into the image. Secrets should be provided at runtime through environment variables or the cloud platform's secret/app-setting system.
+- The database and Redis do not need to run inside the same production container. In this project, Azure SQL and Redis Cloud are external managed dependencies.
+- Containers are still usually stateless. Any data that must survive restart should live outside the container in SQL, Redis, blob storage, or another durable/shared dependency.
 
 What to understand:
 
 - Containers help reduce "works on my machine" differences by packaging the runtime more predictably.
 - For a project like this, one container can be a practical way to deploy the whole app surface together.
+
+What the current Dockerfile does:
+
+1. Uses `node:22-alpine` as the build image.
+2. Installs dependencies with `npm ci`.
+3. Copies the project source.
+4. Runs `npm run build`, which includes Prisma generation plus client and server builds.
+5. Creates a smaller runtime image.
+6. Installs production dependencies only.
+7. Copies the compiled `dist` folder.
+8. Exposes port `3000`.
+9. Starts `node dist/server/index.js`.
+
+Why this is a good pattern:
+
+- build tooling stays out of the final runtime stage;
+- the final image is smaller than a dev image;
+- production starts from compiled JavaScript rather than TypeScript source;
+- the same artifact can run locally, in Azure, or in another container host with different env vars.
+
+Implementation path if you had to containerize this fully:
+
+1. Keep the single-container app model first.
+   - The Express server already serves the API, Socket.IO, and built frontend.
+   - That means one Node container is enough for the current architecture.
+
+2. Build the image.
+
+```bash
+docker build -t brix-app .
+```
+
+3. Run it locally with env vars.
+
+```bash
+docker run --rm -p 3000:3000 ^
+  -e NODE_ENV=production ^
+  -e PORT=3000 ^
+  -e DATABASE_URL="..." ^
+  -e JWT_SECRET="..." ^
+  -e CLIENT_ORIGIN="http://localhost:3000" ^
+  -e PUBLIC_BASE_URL="http://localhost:3000" ^
+  -e REDIS_URL="..." ^
+  brix-app
+```
+
+4. Keep managed dependencies outside the app container.
+   - Azure SQL remains the durable database.
+   - Redis Cloud remains the transient-state/rate-limiting store.
+   - Resend remains the email provider.
+
+5. Add or verify health checks.
+   - `/health` can confirm the process is alive.
+   - `/health/ready` can confirm Redis readiness.
+   - A production-grade container setup should eventually check database readiness too.
+
+6. Deploy the image.
+   - Push the image to a registry such as Azure Container Registry, Docker Hub, or GitHub Container Registry.
+   - Configure Azure App Service for Containers or Azure Container Apps to pull and run it.
+   - Set environment variables in Azure App Settings, not inside the image.
+
+7. Run migrations separately from app startup.
+   - `prisma migrate deploy` should usually run as a release/deployment step.
+   - Avoid making every container startup mutate the production schema automatically, because multiple instances could start at the same time.
+
+One important Prisma note:
+
+- Prisma-generated runtime files must be present in the final container.
+- Since `npm run build` runs `prisma generate` in the build stage, a production Docker setup should verify that the generated Prisma client/runtime is available in the runtime stage too.
+- If the runtime image installs fresh production dependencies, you should either run `prisma generate` in the runtime stage or copy the generated Prisma client/runtime from the build stage.
+- This connects to the earlier deployment lesson: Prisma can work locally but fail after packaging if generated hidden runtime files are missing.
+
+Possible `docker-compose.yml` for local development:
+
+```yaml
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      CLIENT_ORIGIN: http://localhost:3000
+      PUBLIC_BASE_URL: http://localhost:3000
+      REDIS_URL: ${REDIS_URL}
+```
+
+For this project, Compose would mainly be useful for local convenience. Since the real database and Redis are managed cloud services, Compose does not need to run SQL Server or Redis unless you specifically want local-only substitutes.
+
+How to answer in an interview:
+
+> I would containerize this as a single Node service first because the Express backend already serves the API, Socket.IO, and static React build. I would use a multi-stage Dockerfile: install and build in one stage, then run only production dependencies and compiled output in the runtime stage. Secrets like `DATABASE_URL`, `JWT_SECRET`, OIDC credentials, and `REDIS_URL` would be injected at runtime through Azure App Settings. I would keep Azure SQL and Redis outside the container as managed dependencies, and I would run Prisma migrations as a deployment step rather than on every app startup.
 
 ### 4.27 Config and Runtime Boundaries
 
@@ -4311,6 +4440,9 @@ Study these:
 - [Azure App Service app settings](https://learn.microsoft.com/en-us/azure/app-service/reference-app-settings)
 - [Azure App Service configuration basics](https://learn.microsoft.com/en-us/azure/app-service/configure-common)
 - [Azure SQL serverless / auto-pause](https://learn.microsoft.com/en-us/azure/azure-sql/database/serverless-tier-overview?view=azuresql)
+- [Docker overview](https://docs.docker.com/get-started/docker-overview/)
+- [Dockerfile reference](https://docs.docker.com/reference/dockerfile/)
+- [Docker Compose overview](https://docs.docker.com/compose/)
 
 High-level orientation before you open them:
 
@@ -4321,6 +4453,17 @@ High-level orientation before you open them:
 - `Azure SQL serverless / auto-pause`
   - Read this to understand why a managed database can sleep and then wake slowly.
   - This is one of the key operational explanations behind real login and callback issues in the project.
+
+- `Docker overview`
+  - Read this to understand images, containers, registries, and why containerization reduces runtime differences.
+
+- `Dockerfile reference`
+  - Skim this to understand `FROM`, `WORKDIR`, `COPY`, `RUN`, `ENV`, `EXPOSE`, and `CMD`.
+  - These map directly to this repo's Dockerfile.
+
+- `Docker Compose overview`
+  - Read this only at a high level.
+  - Compose is useful for defining multi-service local environments, but this project can still run as one app container with managed external SQL and Redis.
 
 Key terms to know:
 
@@ -4342,10 +4485,26 @@ Key terms to know:
 - `stateless instance`
   - An app process that does not depend on its own local memory as the only source of important state.
 
+- `container image`
+  - The packaged application artifact.
+
+- `container`
+  - A running instance of an image.
+
+- `registry`
+  - A place to store and pull images, such as Azure Container Registry or Docker Hub.
+
+- `multi-stage build`
+  - A Dockerfile pattern that separates build-time dependencies from the final runtime image.
+
+- `docker-compose`
+  - A local orchestration file for running one or more services together.
+
 How to think about this section:
 
 - Cloud bugs are often configuration and lifecycle bugs, not just code bugs.
 - A system can be correct in logic and still fail in practice because of dependency wake-up or bad runtime config.
+- Docker helps package the app consistently, but it does not remove the need for correct env vars, migrations, health checks, and managed dependencies.
 
 What to take away:
 
@@ -4353,6 +4512,8 @@ What to take away:
 - why app restarts matter after config changes
 - what cold starts and auto-pause do to end-user flows
 - why stateless design matters in cloud-hosted apps
+- how a Dockerfile turns the app into a portable runtime artifact
+- why migrations should usually be a deployment step rather than random container startup behavior
 
 ### Security and Operational Hygiene
 
@@ -4420,6 +4581,7 @@ If you have a little more time, add this second pass:
 12. cookies vs JWT vs browser storage
 13. transactions, indexes, and relational modeling
 14. cold starts, auto-pause, and stateless deployment concepts
+15. Docker images, containers, and the app's containerization path
 
 ---
 
@@ -4694,6 +4856,8 @@ Block 1, 7:00am to 7:45am:
 - your intro;
 - project summary;
 - why this project fits Okta/customer identity/support engineering.
+- why Okta;
+- one strength, one weakness, and one mistake story.
 
 Block 2, 7:50am to 8:35am:
 
@@ -4725,7 +4889,7 @@ Block 4, 9:20am to 9:45am:
 Final 15 minutes:
 
 - no heavy studying;
-- skim only your intro and the one-minute project description;
+- skim only your intro, why Okta, and the one-minute project description;
 - let your brain settle.
 
 ### Time Estimate For README Plus Code
@@ -4799,6 +4963,8 @@ If you can do these without notes, this README has probably done its job:
 - explain baselining
 - explain Azure SQL auto-pause
 - explain liveness vs readiness
+- explain Docker image vs container
+- explain how this app would run as a single Node container
 
 ### Realtime
 
@@ -4821,6 +4987,14 @@ If you can do these without notes, this README has probably done its job:
 
 - tell 4 bug stories
 - answer 5 scenario questions with symptom -> root cause -> fix -> prevention
+
+### HR and communication
+
+- answer "tell me about yourself"
+- answer "why Okta"
+- answer "why this role"
+- tell one mistake story without sounding careless
+- explain responsible AI usage honestly
 
 If you cannot do one of these, that area becomes the next revision target.
 
@@ -5154,7 +5328,313 @@ That structure works especially well for support-oriented interviews.
 
 ---
 
-## 19. Repo Support Docs You Should Also Know Exist
+## 19. HR and Behavioral Scenarios for the Okta Interview
+
+These are not "soft" questions in a support/customer identity role. They test whether you can communicate clearly, stay calm with customers, take ownership, and learn fast.
+
+Use this answer pattern:
+
+1. Situation:
+   what was happening
+2. Task:
+   what you needed to do
+3. Action:
+   what you personally did
+4. Result:
+   what improved
+5. Learning:
+   what you would carry forward
+
+This is the STAR format, with one extra learning line.
+
+### 19.1 "Tell me about yourself."
+
+Strong answer:
+
+> I am Aryan, currently pursuing Information Technology at MIT Manipal. I have always been interested in logical systems, which is what originally pulled me toward computer science. I have explored embedded systems and more recently moved deeper into web development and backend systems. I am also interning at a financial firm, where I work with proprietary data and software and think about algorithmic ways to identify useful patterns in STIR markets. My recent project, Brix, helped me connect a lot of practical areas: React, Node, Prisma, Azure, authentication, realtime Socket.IO communication, and debugging production-like issues. What interests me about this role is that it combines technical problem solving with customer-facing clarity, especially around identity and SaaS systems.
+
+Why this works:
+
+- it is concise;
+- it connects your background to the role;
+- it does not over-explain college or personal history;
+- it positions you as technical plus communicative.
+
+### 19.2 "Why Okta?"
+
+Strong answer:
+
+> What interests me about Okta is that identity sits at a very important layer of modern software. Almost every serious SaaS product depends on authentication, authorization, SSO, security, and reliable user access. While working on my own project, I realized that login is not just a button. It involves redirect URI configuration, token validation, database linking, session handling, CORS, and production deployment issues. Okta works directly in that space, so the role feels like a strong fit for someone who enjoys debugging real systems and explaining technical issues clearly.
+
+What to emphasize:
+
+- identity is foundational;
+- your project gave you practical exposure;
+- you like the mix of engineering and customer impact.
+
+### 19.3 "Why this role?"
+
+Strong answer:
+
+> This role appeals to me because it is not only about writing code in isolation. It needs debugging, communication, customer empathy, and understanding how web apps actually behave in production. The JD mentions troubleshooting customer issues, understanding authentication and authorization concepts, working with web technologies, and explaining problems clearly. Those map well to what I have been building and studying: OIDC, JWT, REST APIs, Socket.IO, Prisma, Azure deployment, Redis, and practical debugging.
+
+Good closing line:
+
+> I see it as a role where I can keep growing technically while also learning how production SaaS products are supported in the real world.
+
+### 19.4 "What are your strengths?"
+
+Strong answer:
+
+> One strength is that I like breaking a problem into layers instead of guessing randomly. For example, when Google login worked but the app still reported SSO failure, I separated provider success from application success and checked the callback, database dependency, and app JWT creation separately. Another strength is that I enjoy learning systems deeply enough to explain them. I do not just want to know that something works; I want to know why it works and where it can fail.
+
+What this shows:
+
+- analytical debugging;
+- communication;
+- curiosity;
+- ownership.
+
+### 19.5 "What is your weakness?"
+
+Strong answer:
+
+> Earlier, I sometimes tried to understand too much of a system at once, which could make large codebases feel overwhelming. I have improved by learning to follow one workflow end-to-end first. For example, in this project I started reading the login flow, then the socket flow, then the database flow, instead of trying to memorize every file. That made me faster and also helped me explain the system better.
+
+Why this is safe:
+
+- real but not damaging;
+- shows improvement;
+- directly connects to engineering maturity.
+
+Avoid saying:
+
+- "I am a perfectionist";
+- "I work too hard";
+- "I have no weaknesses."
+
+### 19.6 "Tell me about a time you faced a difficult technical problem."
+
+Use the Prisma migration story.
+
+Strong answer:
+
+> A difficult issue I faced was with Prisma migrations on Azure SQL. I had deployed a database before Prisma migration history was properly established. Later, when I tried to deploy schema changes, Prisma returned `P3005` because the database was not empty. The issue was not that the schema itself was invalid; it was that the production-like database and Prisma's migration history were out of sync. I researched the correct workflow, baselined the existing database using `prisma migrate resolve --applied`, and then deployed future migrations normally. The lesson was that database migration state is part of production correctness, not just local development.
+
+What it proves:
+
+- you can read error codes;
+- you can distinguish root cause from symptom;
+- you handled a real deployment-style issue.
+
+### 19.7 "Tell me about a time something broke and you had to debug it."
+
+Use the Google SSO / Azure SQL auto-pause story.
+
+Strong answer:
+
+> One issue happened after Google login. The provider login succeeded, but the app still showed SSO failure after redirect. I realized that external identity success and local app session success are different steps. The callback still needed the database to find or create the local user and issue the app JWT. Because Azure SQL could auto-pause, the callback path could fail or be slow even though Google auth was fine. I checked the callback flow, separated the dependencies, and confirmed the auth logic after the database was reachable. That taught me to debug chained systems one boundary at a time.
+
+What it proves:
+
+- identity debugging;
+- cloud dependency awareness;
+- calm investigation.
+
+### 19.8 "How would you handle an angry customer?"
+
+Strong answer:
+
+> First I would acknowledge the impact without becoming defensive. Then I would gather the minimum information needed to narrow the issue: what action failed, when it started, whether it affects one user or many users, any error message, and what changed recently. I would communicate what I am checking and avoid making promises before confirming the cause. If the issue is urgent, I would look for a workaround while continuing root-cause investigation. After resolution, I would summarize what happened and what can prevent it in the future.
+
+Good phrase:
+
+> I would focus on making the customer feel that the issue is owned, not ignored.
+
+Why this fits Okta:
+
+- support roles reward calm triage;
+- customers care about access and business impact;
+- communication matters as much as technical investigation.
+
+### 19.9 "A customer says SSO is broken. What do you do?"
+
+Strong answer:
+
+> I would avoid treating "SSO is broken" as one single category. I would split it into stages: start of login, redirect to provider, provider authentication, callback to app, token validation, local user linking, and app session creation. Then I would ask for the exact error, timestamp, affected user or tenant, browser/network details if available, and whether it is happening for all users or only one. Technically, I would check redirect URI, client ID/secret, issuer, state/nonce or SAML assertion validation depending on protocol, and backend logs around the callback.
+
+What to mention if they ask protocol:
+
+- OIDC: auth code, token endpoint, ID token, JWKS;
+- SAML: SAML response, ACS URL, XML assertion, certificate signature verification.
+
+### 19.10 "Tell me about a time you had to learn something quickly."
+
+Strong answer:
+
+> I had to learn OIDC and OAuth concepts quickly while adding Google sign-in to my project. At first it looked like a simple login button, but I realized there were many moving parts: provider configuration, redirect URI exact matching, authorization code exchange, PKCE, state, nonce, token validation, and local user linking. I broke the flow into steps and implemented it incrementally. By the end, I could explain not only how the feature worked, but also why errors like redirect mismatch or callback failure happen.
+
+What this proves:
+
+- learning speed;
+- practical implementation;
+- explanation ability.
+
+### 19.11 "Tell me about a time you made a mistake."
+
+Use the exposed fallback DB URL story carefully.
+
+Strong answer:
+
+> One mistake was allowing a fallback database URL pattern to remain in code during early deployment work. Even though it helped local/prototype setup initially, it was not acceptable from a security and operations perspective because secrets should never live in source-controlled code. Once I recognized that, I removed the fallback, moved configuration fully to environment variables, and treated secret rotation and config hygiene more seriously. The lesson was that convenience during development should not override secure deployment practice.
+
+Important:
+
+- do not reveal actual secrets;
+- do not sound casual about exposed credentials;
+- frame it as a lesson in security hygiene.
+
+### 19.12 "Tell me about a time you worked under pressure."
+
+Strong answer:
+
+> Preparing this project for a role-relevant interview created time pressure because I had to improve both the implementation and my understanding. I prioritized the highest-impact areas: authentication, OIDC, database migrations, Redis, deployment config, and debugging stories. Instead of trying to perfect every part of the app, I focused on being able to explain the system, known tradeoffs, and next improvements clearly. That helped me turn a broad project into a structured set of talking points.
+
+What this proves:
+
+- prioritization;
+- self-awareness;
+- ability to work within constraints.
+
+### 19.13 "How do you handle ambiguity?"
+
+Strong answer:
+
+> I try to turn ambiguity into a smaller set of testable questions. For example, if a login flow fails, I do not immediately assume the provider is wrong or the code is wrong. I ask: did the request reach the provider, did the callback reach my backend, did token validation pass, did the database lookup work, and did the app issue its own session token? That layered approach helps me make progress even when the initial report is vague.
+
+Why this is strong:
+
+- it sounds practical;
+- it mirrors support/debugging work;
+- it shows structured thinking.
+
+### 19.14 "How do you work in a team?"
+
+Strong answer:
+
+> I try to communicate my assumptions clearly and keep the work visible. If I am debugging something, I would share what layer I am checking and what I have ruled out. If I am blocked, I try to bring specific context rather than just saying it does not work. I also like writing notes or documentation after solving an issue, because it saves future teammates from rediscovering the same problem.
+
+Connect to project:
+
+- README;
+- runbooks;
+- deployment notes;
+- bug stories.
+
+### 19.15 "How would you explain a technical issue to a non-technical customer?"
+
+Strong answer:
+
+> I would remove internal implementation details and focus on impact, cause, and next step. For example, instead of saying "the OIDC callback failed during local user provisioning because Azure SQL was auto-paused," I might say "Your identity provider accepted the login, but our app could not complete the final account lookup step because a backend dependency was not ready. We are checking that dependency and will retry or restore access." If the customer is technical, I would add more detail. The explanation should match the audience.
+
+What this proves:
+
+- communication judgment;
+- customer empathy;
+- ability to translate technical details.
+
+### 19.16 "What would you do if you do not know the answer?"
+
+Strong answer:
+
+> I would be transparent that I do not know yet, then explain how I would find out. In a customer or support setting, I would not guess confidently. I would collect the error, reproduce if possible, check documentation or logs, and escalate with specific findings if needed. The important thing is to keep ownership of the investigation while being honest about uncertainty.
+
+Good phrase:
+
+> I would rather be accurate and systematic than fast and wrong.
+
+### 19.17 "How do you prioritize multiple issues?"
+
+Strong answer:
+
+> I would prioritize by impact and urgency first. Issues blocking many users from logging in would come before a small UI issue. Then I would consider severity, customer impact, available workarounds, and whether the issue is getting worse. I would also communicate status clearly so customers and teammates know what is being handled first and why.
+
+Priority order example:
+
+1. security incident or data exposure
+2. widespread login or access outage
+3. production errors affecting many users
+4. important single-customer blockers
+5. minor UI or documentation issues
+
+### 19.18 "Is it okay to use AI tools?"
+
+Strong answer:
+
+> I think AI tools are acceptable when used responsibly, like documentation, search, or a pair-programming assistant. I should still understand the code I submit, verify behavior, avoid pasting secrets, and be honest about my own contribution. In my project, AI assistance helped me move faster in documentation and implementation planning, but I made sure I understood the architecture, auth flow, bugs, and tradeoffs well enough to explain and debug them myself.
+
+What to avoid:
+
+- saying AI wrote everything;
+- sounding dependent;
+- hiding it if asked directly;
+- pasting confidential company code or secrets into tools.
+
+Best framing:
+
+- AI helped acceleration;
+- ownership stayed with you;
+- understanding and verification are your responsibility.
+
+### 19.19 "Why should we hire you?"
+
+Strong answer:
+
+> I bring a mix of practical technical curiosity and support-oriented communication. I have worked through a project that touches web fundamentals, authentication, OIDC, JWTs, database persistence, Redis, Azure deployment, and realtime sockets. More importantly, I can explain where things fail and how to debug them. For this role, I think that matters because customer issues are rarely isolated to one neat layer. I am early in my career, but I learn quickly, communicate clearly, and I am comfortable taking ownership of unfamiliar technical problems.
+
+This is a good final answer because:
+
+- confident but not arrogant;
+- maps directly to the JD;
+- highlights learning and debugging.
+
+### 19.20 Questions You Can Ask Them
+
+Ask 2 or 3 if you get the chance:
+
+1. What kinds of customer issues does this team handle most often?
+2. How much of the role is debugging integrations versus writing internal tools or code?
+3. What does success look like for someone in the first 3 to 6 months?
+4. How does the team share knowledge from repeated customer issues?
+5. What identity protocols or integrations should a new hire become strongest in first?
+
+Avoid asking first:
+
+- salary;
+- leave policy;
+- whether the work is easy;
+- questions already clearly answered in the JD.
+
+### 19.21 Final HR Prep Checklist
+
+Before the interview, be ready to say these without reading:
+
+1. 45-second intro
+2. why Okta
+3. why this role
+4. one strength
+5. one real weakness with improvement
+6. one difficult technical problem
+7. one customer/debugging scenario
+8. one mistake and lesson
+9. how you handle unknowns
+10. responsible AI usage answer
+
+The goal is not to sound rehearsed. The goal is to avoid blanking on stories you already have.
+
+---
+
+## 20. Repo Support Docs You Should Also Know Exist
 
 These help show the project is supportable, not just coded:
 
@@ -5164,7 +5644,7 @@ These help show the project is supportable, not just coded:
 
 ---
 
-## 20. Final Advice
+## 21. Final Advice
 
 Do not try to memorize every line of code. Know:
 
