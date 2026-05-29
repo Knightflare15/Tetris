@@ -13,6 +13,16 @@ export type CellValue = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export type Board = CellValue[][];
 export type Matrix = CellValue[][];
 
+export interface VisualCell {
+  pieceId: string;
+  type: TetrominoType;
+  value: CellValue;
+  localX: number;
+  localY: number;
+}
+
+export type VisualBoard = Array<Array<VisualCell | null>>;
+
 export type InputAction =
   | "moveLeft"
   | "moveRight"
@@ -39,6 +49,7 @@ export interface QueuedInput extends ClientInput {
 
 export interface ActivePiece {
   type: TetrominoType;
+  pieceId?: string;
   matrix: Matrix;
   x: number;
   y: number;
@@ -79,6 +90,7 @@ export interface RoomSnapshot {
   tick: number;
   status: "waiting" | "playing" | "ended";
   board: Board;
+  visualBoard: VisualBoard;
   players: Record<PlayerSlot, PlayerPublicState | null>;
   hold: SharedHoldState;
   score: number;
@@ -107,6 +119,7 @@ export interface RoomState {
   tick: number;
   status: "waiting" | "playing" | "ended";
   board: Board;
+  visualBoard: VisualBoard;
   players: Record<PlayerSlot, PlayerGameState | null>;
   hold: SharedHoldState;
   score: number;

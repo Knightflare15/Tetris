@@ -9,10 +9,10 @@ export class EmailService {
   constructor(private readonly config: EmailConfig) {}
 
   async sendRegistrationOtp(email: string, displayName: string, otp: string): Promise<void> {
-    await this.sendOtp(email, "Your Brix registration code", [
+    await this.sendOtp(email, "Your Quattro registration code", [
       `Hi ${displayName},`,
       "",
-      "Use this one-time code to finish creating your Brix account:",
+      "Use this one-time code to finish creating your Quattro account:",
       otp,
       "",
       "This code expires in 10 minutes.",
@@ -20,10 +20,10 @@ export class EmailService {
   }
 
   async sendPasswordResetOtp(email: string, displayName: string, otp: string): Promise<void> {
-    await this.sendOtp(email, "Reset your Brix password", [
+    await this.sendOtp(email, "Reset your Quattro password", [
       `Hi ${displayName},`,
       "",
-      "Use this one-time code to reset your Brix password:",
+      "Use this one-time code to reset your Quattro password:",
       otp,
       "",
       "This code expires in 10 minutes.",

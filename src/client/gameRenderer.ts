@@ -4,17 +4,38 @@ import {
   COLS,
   ROWS,
   type ActivePiece,
+  type CellValue,
   type Matrix,
   type PlayerSlot,
   type RoomSnapshot,
   type TetrominoType,
+  type VisualCell,
 } from "../shared/types";
 import { familyForValue, familyForType } from "./wineTheme";
+import {
+  connectedComponents,
+  groupByPieceId,
+  imageForSprite,
+  QUATTRO_SPRITE_LOAD_EVENT,
+  spriteLookupForCells,
+  spriteLookupForType,
+  type ShapeCell,
+} from "./quattroSprites";
+
+export { QUATTRO_SPRITE_LOAD_EVENT };
 
 export const BOARD_BLOCK_SIZE = 30;
 export const BOARD_CANVAS_WIDTH = COLS * BOARD_BLOCK_SIZE;
 export const BOARD_CANVAS_HEIGHT = ROWS * BOARD_BLOCK_SIZE;
 const PREVIEW_BLOCK_SIZE = 18;
+
+interface RenderCell extends ShapeCell {
+  value: CellValue;
+}
+
+interface VisualRenderCell extends RenderCell {
+  visual: VisualCell;
+}
 
 export function renderBoard(
   canvas: HTMLCanvasElement,
@@ -31,13 +52,7 @@ export function renderBoard(
     return;
   }
 
-  snapshot.board.forEach((row, y) => {
-    row.forEach((value, x) => {
-      if (value !== 0) {
-        drawBoardCell(context, x, y, value, 1);
-      }
-    });
-  });
+  drawLockedBoard(context, snapshot);
 
   for (const slot of ["A", "B"] as const) {
     const player = snapshot.players[slot];
@@ -68,11 +83,7 @@ export function renderBoard(
       continue;
     }
     const alpha = slot === localSlot ? 0.96 : 0.55;
-    for (const cell of cellsFor(player.active)) {
-      if (cell.y >= 0) {
-        drawBoardCell(context, cell.x, cell.y, cell.value, alpha);
-      }
-    }
+    drawActivePiece(context, player.active, alpha);
   }
 
   if (snapshot.clearEffect && lineClearProgress < 1) {
@@ -182,6 +193,146 @@ function drawBoardCell(
   context.restore();
 }
 
+function drawLockedBoard(context: CanvasRenderingContext2D, snapshot: RoomSnapshot): void {
+  const visualCells: VisualRenderCell[] = [];
+
+  snapshot.board.forEach((row, y) => {
+    row.forEach((value, x) => {
+      if (value === 0) {
+        return;
+      }
+
+      const visual = snapshot.visualBoard[y]?.[x] ?? null;
+      if (!visual) {
+        drawBoardCell(context, x, y, value, 1);
+        return;
+      }
+
+      visualCells.push({ x, y, value, visual });
+    });
+  });
+
+  for (const group of groupByPieceId(visualCells)) {
+    drawVisualGroup(context, group, 1);
+  }
+}
+
+function drawVisualGroup(
+  context: CanvasRenderingContext2D,
+  group: VisualRenderCell[],
+  alpha: number,
+): void {
+  const cellsByPosition = new Map(group.map((cell) => [`${cell.x}:${cell.y}`, cell]));
+
+  for (const component of connectedComponents(group)) {
+    const renderCells = component
+      .map((cell) => cellsByPosition.get(`${cell.x}:${cell.y}`))
+      .filter((cell): cell is VisualRenderCell => Boolean(cell));
+    if (renderCells.length > 0) {
+      drawCellSpriteComponent(context, renderCells, alpha);
+    }
+  }
+}
+
+function drawActivePiece(
+  context: CanvasRenderingContext2D,
+  piece: ActivePiece,
+  alpha: number,
+): void {
+  const cells = cellsFor(piece);
+  if (drawTetrominoSprite(context, cells, piece.type, alpha, BOARD_BLOCK_SIZE, 2)) {
+    return;
+  }
+
+  for (const cell of cells) {
+    if (cell.y >= 0) {
+      drawBoardCell(context, cell.x, cell.y, cell.value, alpha);
+    }
+  }
+}
+
+function drawCellSpriteComponent(
+  context: CanvasRenderingContext2D,
+  cells: RenderCell[],
+  alpha: number,
+): boolean {
+  const value = cells[0]?.value ?? 0;
+  const lookup = spriteLookupForCells(cells, value);
+  if (!lookup.path) {
+    drawFallbackCells(context, cells, alpha);
+    return false;
+  }
+
+  const image = imageForSprite(lookup.path);
+  if (!image?.complete || image.naturalWidth === 0) {
+    drawFallbackCells(context, cells, alpha);
+    return false;
+  }
+
+  drawImageForCells(context, image, cells, alpha, BOARD_BLOCK_SIZE, 2);
+  return true;
+}
+
+function drawTetrominoSprite(
+  context: CanvasRenderingContext2D,
+  cells: RenderCell[],
+  type: TetrominoType,
+  alpha: number,
+  blockSize: number,
+  inset: number,
+): boolean {
+  if (cells.length === 0) {
+    return false;
+  }
+
+  const lookup = spriteLookupForType(cells, type);
+  if (!lookup.path) {
+    return false;
+  }
+
+  const image = imageForSprite(lookup.path);
+  if (!image?.complete || image.naturalWidth === 0) {
+    return false;
+  }
+
+  drawImageForCells(context, image, cells, alpha, blockSize, inset);
+  return true;
+}
+
+function drawImageForCells(
+  context: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  cells: ShapeCell[],
+  alpha: number,
+  blockSize: number,
+  inset: number,
+): void {
+  const minX = Math.min(...cells.map((cell) => cell.x));
+  const maxX = Math.max(...cells.map((cell) => cell.x));
+  const minY = Math.min(...cells.map((cell) => cell.y));
+  const maxY = Math.max(...cells.map((cell) => cell.y));
+
+  context.save();
+  context.globalAlpha = alpha;
+  context.imageSmoothingEnabled = false;
+  context.drawImage(
+    image,
+    minX * blockSize + inset,
+    minY * blockSize + inset,
+    (maxX - minX + 1) * blockSize - inset * 2,
+    (maxY - minY + 1) * blockSize - inset * 2,
+  );
+  context.restore();
+}
+
+function drawFallbackCells(context: CanvasRenderingContext2D, cells: RenderCell[], alpha: number): void {
+  for (const cell of cells) {
+    if (cell.y >= 0) {
+      drawBoardCell(context, cell.x, cell.y, cell.value, alpha);
+    }
+  }
+}
+
 function drawLineClearEffect(
   context: CanvasRenderingContext2D,
   rows: number[],
@@ -217,6 +368,11 @@ function drawPreviewPiece(
   const pieceWidth = matrix[0]?.length ?? 0;
   const xOffset = Math.floor((4 - pieceWidth) * PREVIEW_BLOCK_SIZE * 0.5);
   const family = familyForType(type);
+  const spriteCells = cellsForPreviewMatrix(matrix, originX + xOffset, originY);
+
+  if (drawTetrominoSprite(context, spriteCells, type, 1, PREVIEW_BLOCK_SIZE, 1)) {
+    return;
+  }
 
   matrix.forEach((row, y) => {
     row.forEach((value, x) => {
@@ -236,6 +392,22 @@ function drawPreviewPiece(
       context.stroke();
     });
   });
+}
+
+function cellsForPreviewMatrix(matrix: Matrix, originX: number, originY: number): RenderCell[] {
+  const cells: RenderCell[] = [];
+  matrix.forEach((row, y) => {
+    row.forEach((value, x) => {
+      if (value !== 0) {
+        cells.push({
+          x: originX / PREVIEW_BLOCK_SIZE + x,
+          y: originY / PREVIEW_BLOCK_SIZE + y,
+          value,
+        });
+      }
+    });
+  });
+  return cells;
 }
 
 function ghostPieceFor(snapshot: RoomSnapshot, slot: PlayerSlot, piece: ActivePiece): ActivePiece | null {

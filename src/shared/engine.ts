@@ -15,6 +15,8 @@ import {
   type RoomSnapshot,
   type RoomState,
   type TetrominoType,
+  type VisualBoard,
+  type VisualCell,
 } from "./types";
 import { createGenerator, ensureQueue } from "./pieceGenerator";
 import { matrixFor, TETROMINO_VALUE } from "./tetrominoes";
@@ -37,12 +39,17 @@ export function createEmptyBoard(): Board {
   return Array.from({ length: ROWS }, () => Array<CellValue>(COLS).fill(0));
 }
 
+export function createEmptyVisualBoard(): VisualBoard {
+  return Array.from({ length: ROWS }, () => Array<VisualCell | null>(COLS).fill(null));
+}
+
 export function createRoomState(roomId: string, seed: number): RoomState {
   return {
     roomId,
     tick: 0,
     status: "waiting",
     board: createEmptyBoard(),
+    visualBoard: createEmptyVisualBoard(),
     players: { A: null, B: null },
     hold: { type: null, lastHolder: null, lastTick: 0 },
     score: 0,
@@ -141,6 +148,7 @@ export function snapshotRoom(state: RoomState): RoomSnapshot {
     tick: state.tick,
     status: state.status,
     board: cloneBoard(state.board),
+    visualBoard: cloneVisualBoard(state.visualBoard),
     players: {
       A: publicPlayer(state.players.A),
       B: publicPlayer(state.players.B),
@@ -288,6 +296,7 @@ function processPendingLocks(state: RoomState, diagnostics: SimulationDiagnostic
     }
 
     mergePiece(state.board, player.active);
+    mergePieceVisuals(state.visualBoard, player.active);
     diagnostics.locks.push(`tick=${state.tick} slot=${player.slot} piece=${player.active.type}`);
     player.pendingLock = false;
     player.canHold = true;
@@ -331,6 +340,7 @@ function createActivePiece(type: TetrominoType, slot: PlayerSlot, spawnCount: nu
   const width = matrix[0].length;
   return {
     type,
+    pieceId: `${slot}-${spawnCount}-${type}`,
     matrix,
     x: spawnColumnFor(slot, width, type, spawnCount),
     y: -1,
@@ -439,6 +449,30 @@ function mergePiece(board: Board, piece: ActivePiece): void {
   }
 }
 
+function mergePieceVisuals(visualBoard: VisualBoard, piece: ActivePiece): void {
+  const value = TETROMINO_VALUE[piece.type];
+  const pieceId = piece.pieceId ?? `${piece.type}-${piece.x}-${piece.y}`;
+  piece.matrix.forEach((row, localY) => {
+    row.forEach((cellValue, localX) => {
+      if (cellValue === 0) {
+        return;
+      }
+
+      const boardX = piece.x + localX;
+      const boardY = piece.y + localY;
+      if (boardY >= 0) {
+        visualBoard[boardY][boardX] = {
+          pieceId,
+          type: piece.type,
+          value,
+          localX,
+          localY,
+        };
+      }
+    });
+  });
+}
+
 function clearLines(
   state: RoomState,
   lockedPiece: ActivePiece,
@@ -459,7 +493,11 @@ function clearLines(
   const scoreEvent = scoreLineClear(state, lockedPiece, player, cleared);
   const remaining = state.board.filter((row) => row.some((cell) => cell === 0));
   const emptyRows = Array.from({ length: cleared }, () => Array<CellValue>(COLS).fill(0));
+  const clearedRowsSet = new Set(clearedRows);
+  const remainingVisuals = state.visualBoard.filter((_, y) => !clearedRowsSet.has(y));
+  const emptyVisualRows = Array.from({ length: cleared }, () => Array<VisualCell | null>(COLS).fill(null));
   state.board = emptyRows.concat(remaining);
+  state.visualBoard = emptyVisualRows.concat(remainingVisuals);
   state.lines += cleared;
   state.score += scoreEvent.points;
   state.level = Math.floor(state.lines / LINES_PER_LEVEL) + 1;
@@ -508,7 +546,7 @@ function scoreLineClear(
 }
 
 function labelForClear(cleared: number): string {
-  return ["", "Single", "Double", "Triple", "Brix"][cleared] ?? `${cleared} lines`;
+  return ["", "Single", "Double", "Triple", "Quattro"][cleared] ?? `${cleared} lines`;
 }
 
 function isTSpin(boardAfterClear: Board, piece: ActivePiece, player: PlayerGameState): boolean {
@@ -562,6 +600,7 @@ function publicPlayer(player: PlayerGameState | null): PlayerPublicState | null 
 function clonePiece(piece: ActivePiece): ActivePiece {
   return {
     type: piece.type,
+    pieceId: piece.pieceId,
     matrix: piece.matrix.map((row) => [...row]),
     x: piece.x,
     y: piece.y,
@@ -570,6 +609,10 @@ function clonePiece(piece: ActivePiece): ActivePiece {
 
 function cloneBoard(board: Board): Board {
   return board.map((row) => [...row]);
+}
+
+function cloneVisualBoard(board: VisualBoard): VisualBoard {
+  return board.map((row) => row.map((cell) => (cell ? { ...cell } : null)));
 }
 
 function forEachPlayer(state: RoomState, callback: (player: PlayerGameState) => void): void {

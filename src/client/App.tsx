@@ -8,10 +8,17 @@ import {
   type RoomSnapshot,
   type TetrominoType,
 } from "../shared/types";
-import { BOARD_CANVAS_HEIGHT, BOARD_CANVAS_WIDTH, renderBoard, renderHold, renderPreview } from "./gameRenderer";
+import {
+  BOARD_CANVAS_HEIGHT,
+  BOARD_CANVAS_WIDTH,
+  QUATTRO_SPRITE_LOAD_EVENT,
+  renderBoard,
+  renderHold,
+  renderPreview,
+} from "./gameRenderer";
 import { playLineClearSound } from "./gameAudio";
 import { useBrixGame } from "./useBrixGame";
-import { WINE_FAMILIES, familyForType } from "./wineTheme";
+import { familyForType } from "./wineTheme";
 
 interface ScoreBurst {
   id: number;
@@ -42,6 +49,7 @@ export function App(): ReactElement {
   const combo = game.snapshot?.combo ?? 0;
   const lastClear = game.snapshot?.clearEffect;
   const progress = (lines % LINES_PER_LEVEL) / LINES_PER_LEVEL;
+  const inGame = game.snapshot?.status === "playing" && !game.snapshot.gameOver;
 
   useEffect(() => {
     const effect = game.snapshot?.clearEffect;
@@ -60,10 +68,7 @@ export function App(): ReactElement {
   return (
     <main className="brix-app">
       <header className="brix-topbar">
-        <div className="brand-lockup" aria-label="Brix">
-          <h1>Brix</h1>
-          <span className="brand-vine">est 2026</span>
-        </div>
+        <div className="brand-lockup" aria-label="Quattro" />
         <div className="topbar-actions">
           <StatusPill status={game.status} connected={game.isConnected} />
           <button className="ghost-button" type="button" onClick={() => setAuthOpen(true)}>
@@ -72,12 +77,12 @@ export function App(): ReactElement {
         </div>
       </header>
 
-      <section className="brix-layout" aria-label="Brix game board and match panels">
+      <section className="brix-layout" aria-label="Quattro game board and match panels">
         <aside className="side-rail left-rail">
           {game.authMode !== "account" && (
             <section className="cellar-card welcome-card">
-              <p className="eyebrow">Cellar pass</p>
-              <h2>Guest tasting</h2>
+              <p className="eyebrow">Cat pass</p>
+              <h2>Guest nap</h2>
               <p>Play now, then login or register when ready.</p>
               <div className="button-stack">
                 <button type="button" onClick={() => setAuthOpen(true)}>
@@ -118,33 +123,37 @@ export function App(): ReactElement {
         <section className="board-column">
           <div className="board-crown" aria-hidden="true">
             <span />
-            <strong>Brix</strong>
+            <strong>Quattro</strong>
             <span />
           </div>
           <BoardCanvas snapshot={game.snapshot} localSlot={game.localSlot} onInput = {game.sendInput}/>
           <ScoreBurstLayer bursts={scoreBursts} />
-          <label className="practice-speed-control">
-            <span>Bot speed</span>
-            <select
-              value={practiceSpeed}
-              onChange={(event) => setPracticeSpeed(event.target.value as PracticeBotSpeed)}
-            >
-              <option value="slow">Slow start</option>
-              <option value="balanced">Balanced</option>
-              <option value="quick">Quick</option>
-            </select>
-          </label>
-          <div className="match-actions">
-            <button className="match-button" type="button" onClick={() => void game.connectAndQueue()}>
-              Find Match
-            </button>
-            <button className="practice-button" type="button" onClick={() => void game.startPractice(practiceSpeed)}>
-              Practice
-            </button>
-            <button className="reconnect-button" type="button" onClick={() => void game.reconnectStoredSession()}>
-              Reconnect
-            </button>
-          </div>
+          {!inGame && (
+            <>
+              <label className="practice-speed-control">
+                <span>Bot speed</span>
+                <select
+                  value={practiceSpeed}
+                  onChange={(event) => setPracticeSpeed(event.target.value as PracticeBotSpeed)}
+                >
+                  <option value="slow">Slow start</option>
+                  <option value="balanced">Balanced</option>
+                  <option value="quick">Quick</option>
+                </select>
+              </label>
+              <div className="match-actions">
+                <button className="match-button" type="button" onClick={() => void game.connectAndQueue()}>
+                  Find Match
+                </button>
+                <button className="practice-button" type="button" onClick={() => void game.startPractice(practiceSpeed)}>
+                  Practice
+                </button>
+                <button className="reconnect-button" type="button" onClick={() => void game.reconnectStoredSession()}>
+                  Reconnect
+                </button>
+              </div>
+            </>
+          )}
         </section>
 
         <aside className="side-rail right-rail">
@@ -166,8 +175,6 @@ export function App(): ReactElement {
           </section>
         </aside>
       </section>
-
-      <FruitFamilies />
 
       <MobileControls
         expanded={controlsOpen}
@@ -271,6 +278,21 @@ function BoardCanvas({
     if (!animationActiveRef.current) {
       renderBoard(canvas, snapshot, localSlot);
     }
+  }, [localSlot, snapshot]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return;
+    }
+
+    const redraw = () => {
+      if (!animationActiveRef.current) {
+        renderBoard(canvas, snapshot, localSlot);
+      }
+    };
+    window.addEventListener(QUATTRO_SPRITE_LOAD_EVENT, redraw);
+    return () => window.removeEventListener(QUATTRO_SPRITE_LOAD_EVENT, redraw);
   }, [localSlot, snapshot]);
 
   useEffect(() => () => {
@@ -417,7 +439,7 @@ function BoardCanvas({
   return (
     <section
       className="board-frame"
-      aria-label="Brix board"
+      aria-label="Quattro board"
     >
       <canvas
         ref={canvasRef}
@@ -443,9 +465,20 @@ function QueueCard({ queue }: { queue: TetrominoType[] }): ReactElement {
     }
   }, [queue]);
 
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return;
+    }
+
+    const redraw = () => renderPreview(canvas, queue);
+    window.addEventListener(QUATTRO_SPRITE_LOAD_EVENT, redraw);
+    return () => window.removeEventListener(QUATTRO_SPRITE_LOAD_EVENT, redraw);
+  }, [queue]);
+
   return (
     <section className="cellar-card preview-card">
-      <p className="eyebrow">Next pours</p>
+      <p className="eyebrow">Next cats</p>
       <canvas ref={canvasRef} width={150} height={250} />
     </section>
   );
@@ -459,6 +492,17 @@ function PreviewCard({ title, type }: { title: string; type: TetrominoType | nul
     if (canvasRef.current) {
       renderHold(canvasRef.current, type);
     }
+  }, [type]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return;
+    }
+
+    const redraw = () => renderHold(canvas, type);
+    window.addEventListener(QUATTRO_SPRITE_LOAD_EVENT, redraw);
+    return () => window.removeEventListener(QUATTRO_SPRITE_LOAD_EVENT, redraw);
   }, [type]);
 
   return (
@@ -642,7 +686,7 @@ function AuthModal({
         <button className="modal-close" type="button" aria-label="Close auth dialog" onClick={onClose}>
           x
         </button>
-        <p className="eyebrow">Brix cellar</p>
+        <p className="eyebrow">Quattro den</p>
         <h2 id="authTitle">
           {authMode === "account"
             ? "Account"
@@ -787,7 +831,7 @@ function WineGlass({
   return (
     <div
       className={`wine-progress ${celebrating ? "is-celebrating" : ""}`}
-      aria-label={`Wine glass level progress ${Math.round(fill * 100)} percent`}
+      aria-label={`Yarn level progress ${Math.round(fill * 100)} percent`}
     >
       <div className="glass-bowl" key={clearEffect?.id ?? "resting"}>
         <div className="wine-fill" style={{ height: `${fill * 100}%` }} />
@@ -797,7 +841,7 @@ function WineGlass({
       </div>
       <div className="glass-stem" />
       <div className="glass-base" />
-      <span>Fill the glass to reach the next level.</span>
+      <span>Wind the yarn to reach the next level.</span>
     </div>
   );
 }
@@ -841,20 +885,6 @@ function createScoreBurst(effect: LineClearEffect): ScoreBurst {
 
 function lineClearCallout(count: number): string {
   return ["", "uno!", "dos!", "tres!!", "quattro!!!"][count] ?? `${count} lines!`;
-}
-
-function FruitFamilies(): ReactElement {
-  return (
-    <section className="fruit-strip" aria-label="Wine fruit families and Brix tile groups">
-      {WINE_FAMILIES.map((family) => (
-        <article className="fruit-family" key={family.type}>
-          <span className="fruit-mark" style={{ background: family.color, boxShadow: `0 8px 0 ${family.shadow}` }} />
-          <h3>{family.name}</h3>
-          <p>{family.notes}</p>
-        </article>
-      ))}
-    </section>
-  );
 }
 
 function MobileControls({ expanded, onToggle, onInput }: {

@@ -47,7 +47,7 @@ export function loadConfig(): ServerConfig {
     clientOrigin,
     disconnectGraceMs: Number(process.env.DISCONNECT_GRACE_MS ?? 30000),
     resendApiKey: process.env.RESEND_API_KEY,
-    emailFrom: process.env.EMAIL_FROM ?? "Brix <onboarding@resend.dev>",
+    emailFrom: process.env.EMAIL_FROM ?? "Quattro <onboarding@resend.dev>",
     oidc: loadOidcConfig(publicBaseUrl),
   };
 }

@@ -21,6 +21,10 @@ module.exports = merge(common, {
         directory: path.resolve(__dirname, "sounds"),
         publicPath: "/sounds",
       },
+      {
+        directory: path.resolve(__dirname, "src/assets"),
+        publicPath: "/assets",
+      },
     ],
     proxy: [
       {

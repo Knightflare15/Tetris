@@ -170,6 +170,52 @@ describe("authoritative shared engine", () => {
     expect(double.clearEffect?.label).toContain("Double");
   });
 
+  it("stamps locked cells with visual metadata", () => {
+    const room = preparedClearRoom("visual-lock");
+    if (!room.players.A) {
+      throw new Error("Expected player A.");
+    }
+
+    room.players.A.active = {
+      type: "O",
+      pieceId: "visual-o",
+      matrix: matrixFor("O"),
+      x: 0,
+      y: 0,
+    };
+
+    simulateTick(room, [input("A", 1, "hardDrop")]);
+
+    const lockedVisuals = room.visualBoard.flat().filter(Boolean);
+    expect(lockedVisuals).toHaveLength(4);
+    expect(lockedVisuals.every((cell) => cell?.pieceId === "visual-o")).toBe(true);
+    expect(lockedVisuals.every((cell) => cell?.type === "O")).toBe(true);
+  });
+
+  it("preserves survivor visual metadata after a partial line clear", () => {
+    const room = preparedClearRoom("visual-clear");
+    if (!room.players.A) {
+      throw new Error("Expected player A.");
+    }
+
+    room.players.A.active = {
+      type: "O",
+      pieceId: "survivor-o",
+      matrix: matrixFor("O"),
+      x: 0,
+      y: 0,
+    };
+    room.board[24] = room.board[24].map((_, x) => (x === 1 || x === 2 ? 0 : 1));
+
+    simulateTick(room, [input("A", 1, "hardDrop")]);
+
+    const survivors = room.visualBoard[24].filter(Boolean);
+    expect(room.lines).toBe(1);
+    expect(survivors).toHaveLength(2);
+    expect(survivors.every((cell) => cell?.pieceId === "survivor-o")).toBe(true);
+    expect(survivors.map((cell) => cell?.localY)).toEqual([1, 1]);
+  });
+
   it("rewards combo handoffs between players", () => {
     const relay = preparedRelayRoom("relay", "A");
     simulateTick(relay, [input("B", 1, "hardDrop")]);
