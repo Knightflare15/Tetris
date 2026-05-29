@@ -98,6 +98,7 @@ export interface RoomSnapshot {
   lines: number;
   combo: number;
   gameOver: boolean;
+  lockEffect?: LockEffect;
   clearEffect?: LineClearEffect;
   winnerMessage?: string;
 }
@@ -128,6 +129,7 @@ export interface RoomState {
   combo: number;
   backToBack: boolean;
   lastClearSlot: PlayerSlot | null;
+  lockEffect?: LockEffect;
   clearEffect?: LineClearEffect;
   gameOver: boolean;
   seed: number;
@@ -201,4 +203,11 @@ export interface LineClearEffect {
   count: number;
   label: string;
   points: number;
+}
+
+export interface LockEffect {
+  id: number;
+  tick: number;
+  value: CellValue;
+  cells: Array<{ x: number; y: number }>;
 }

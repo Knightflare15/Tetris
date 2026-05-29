@@ -159,6 +159,9 @@ export function snapshotRoom(state: RoomState): RoomSnapshot {
     lines: state.lines,
     combo: state.combo,
     gameOver: state.gameOver,
+    lockEffect: state.lockEffect
+      ? { ...state.lockEffect, cells: state.lockEffect.cells.map((cell) => ({ ...cell })) }
+      : undefined,
     clearEffect: state.clearEffect ? { ...state.clearEffect, rows: [...state.clearEffect.rows] } : undefined,
     winnerMessage: state.winnerMessage,
   };
@@ -297,6 +300,14 @@ function processPendingLocks(state: RoomState, diagnostics: SimulationDiagnostic
 
     mergePiece(state.board, player.active);
     mergePieceVisuals(state.visualBoard, player.active);
+    state.lockEffect = {
+      id: state.tick,
+      tick: state.tick,
+      value: TETROMINO_VALUE[player.active.type],
+      cells: cellsFor(player.active)
+        .filter((cell) => cell.y >= 0)
+        .map((cell) => ({ x: cell.x, y: cell.y })),
+    };
     diagnostics.locks.push(`tick=${state.tick} slot=${player.slot} piece=${player.active.type}`);
     player.pendingLock = false;
     player.canHold = true;

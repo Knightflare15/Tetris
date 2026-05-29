@@ -310,10 +310,18 @@ canvas {
   gap: 6px;
 }
 
+.compact-card-heading {
+  margin-bottom: 6px;
+}
+
 .mini-button {
   min-width: 0;
-  padding: 2px 2px;
-  font-size: clamp(0.2rem, 1.2vw, 0.72rem);
+  padding: 4px 8px;
+  font-size: clamp(0.52rem, 1.2vw, 0.72rem);
+}
+
+.social-launch-button {
+  white-space: nowrap;
 }
 
 .friend-form {
@@ -467,28 +475,6 @@ canvas {
   position: relative;
   display: grid;
   justify-items: center;
-}
-
-.board-crown {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: clamp(5px, 1vw, 10px);
-  min-height: clamp(28px, 4.6vw, 54px);
-  color: #9b4568;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(0.82rem, 2vw, 1.2rem);
-  text-shadow: 0 3px 16px rgba(255, 201, 138, 0.42);
-}
-
-.board-crown span {
-  width: clamp(18px, 4vw, 44px);
-  height: 1px;
-  background: linear-gradient(90deg, transparent, #d9b48d);
-}
-
-.board-crown span:last-child {
-  background: linear-gradient(90deg, #d9b48d, transparent);
 }
 
 .board-frame {
@@ -1062,6 +1048,8 @@ canvas {
 .auth-modal {
   position: relative;
   width: min(100%, 390px);
+  max-height: min(88dvh, 760px);
+  overflow-y: auto;
   border: 1px solid rgba(188, 154, 119, 0.28);
   border-radius: 8px;
   padding: 22px;
@@ -1181,6 +1169,28 @@ canvas {
   box-shadow: 0 8px 18px rgba(157, 74, 108, 0.24);
 }
 
+.friends-modal {
+  width: min(100%, 520px);
+}
+
+.friends-modal .card-heading-row {
+  align-items: start;
+  margin-bottom: 10px;
+  padding-right: 56px;
+}
+
+.friends-modal h2 {
+  margin-bottom: 0;
+}
+
+.friends-modal .friend-form {
+  margin-bottom: 10px;
+}
+
+.friends-modal .leaderboard-list {
+  margin-top: 10px;
+}
+
 @media (max-width: 960px) {
   :root {
     --app-gutter: clamp(5px, 1.8vw, 12px);
@@ -1261,15 +1271,6 @@ canvas {
   .side-rail {
     gap: 5px;
     padding-top: 9px;
-  }
-
-  .board-crown {
-    min-height: 28px;
-    font-size: 0.9rem;
-  }
-
-  .board-crown span {
-    width: 28px;
   }
 
   .board-frame {
@@ -1563,10 +1564,6 @@ canvas {
   .social-message,
   .leaderboard-list {
     display: none;
-  }
-
-  .board-crown {
-    min-height: 24px;
   }
 
   .board-frame {
@@ -1910,4 +1907,296 @@ canvas {
     padding: 5px 4px;
     font-size: 0.62rem;
   }
+}
+
+@media (max-width: 520px) {
+  .brix-app {
+    padding-inline: 2px;
+  }
+
+  .brix-layout {
+    grid-template-columns:
+      minmax(0, 20.5vw)
+      minmax(0, 54vw)
+      minmax(0, 20.5vw);
+    justify-content: center;
+    gap: 1px;
+    align-items: start;
+  }
+
+  .left-rail,
+  .right-rail {
+    padding-top: 0;
+  }
+
+  .side-rail {
+    gap: 3px;
+  }
+
+  .cellar-card {
+    padding: 3px;
+    border-radius: 5px;
+  }
+
+  .cellar-card h2 {
+    font-size: 0.66rem;
+  }
+
+  .cellar-card p,
+  .stat-row {
+    font-size: 0.48rem;
+  }
+
+  .eyebrow {
+    margin-bottom: 2px !important;
+    font-size: 0.44rem !important;
+  }
+
+  .stat-row {
+    gap: 3px;
+    margin: 0 !important;
+  }
+
+  .stat-row strong {
+    font-size: 0.62rem;
+  }
+
+  .compact-card input {
+    padding: 3px 4px;
+    font-size: 0.54rem;
+    margin-bottom: 3px;
+  }
+
+  .field-label {
+    margin-bottom: 1px;
+    font-size: 0.44rem;
+  }
+
+  .mini-button {
+    padding: 2px 4px;
+    font-size: 0.42rem;
+  }
+
+  .board-frame,
+  .score-burst-layer {
+    width: min(100%, 54vw, 192px) !important;
+  }
+
+  .board-frame {
+    padding: 4px;
+    border-width: 4px;
+  }
+
+  .practice-speed-control {
+    width: min(100%, 192px);
+    gap: 2px;
+    margin-top: 3px;
+    font-size: 0.48rem;
+  }
+
+  .practice-speed-control select {
+    min-width: 0;
+    max-width: 100px;
+    padding: 4px 18px 4px 5px;
+    font-size: 0.56rem;
+  }
+
+  .match-actions {
+    width: min(100%, 196px);
+    gap: 2px;
+    margin-top: 3px;
+  }
+
+  .match-actions button {
+    padding: 4px 1px;
+    font-size: 0.46rem;
+  }
+
+  .preview-card {
+    padding: 2px;
+  }
+
+  .preview-card:not(.short-preview) {
+    min-height: 108px;
+  }
+
+  .short-preview {
+    min-height: 52px;
+  }
+
+  .preview-card canvas {
+    max-width: 34px;
+    height: 56px;
+    margin-bottom: 0;
+  }
+
+  .short-preview canvas {
+    max-width: 34px;
+    height: 24px;
+  }
+
+  .preview-card strong {
+    font-size: 0.46rem;
+    line-height: 1.05;
+  }
+}
+
+@media (max-width: 425px) {
+  .brix-layout {
+    grid-template-columns:
+      minmax(0, 19.5vw)
+      minmax(0, 56vw)
+      minmax(0, 19.5vw);
+    justify-content: center;
+    gap: 1px;
+  }
+
+  .cellar-card {
+    padding: 3px 2px;
+  }
+
+  .cellar-card p,
+  .stat-row {
+    font-size: 0.44rem;
+  }
+
+  .stat-row strong {
+    font-size: 0.58rem;
+  }
+
+  .compact-card input {
+    font-size: 0.52rem;
+  }
+
+  .preview-card:not(.short-preview) {
+    min-height: 96px;
+  }
+
+  .short-preview {
+    min-height: 46px;
+  }
+
+  .board-frame,
+  .score-burst-layer {
+    width: min(100%, 56vw, 184px) !important;
+  }
+
+  .preview-card canvas {
+    max-width: 30px;
+    height: 50px;
+  }
+
+  .short-preview canvas {
+    max-width: 30px;
+    height: 20px;
+  }
+}
+
+@media (max-width: 345px) {
+  .brix-layout {
+    grid-template-columns:
+      minmax(0, 18.5vw)
+      minmax(0, 58vw)
+      minmax(0, 18.5vw);
+    justify-content: center;
+  }
+
+  .cellar-card {
+    padding: 3px;
+  }
+
+  .cellar-card p,
+  .stat-row {
+    font-size: 0.48rem;
+  }
+
+  .stat-row strong {
+    font-size: 0.62rem;
+  }
+
+  .mini-button {
+    padding: 2px 4px;
+    font-size: 0.44rem;
+  }
+
+  .preview-card:not(.short-preview) {
+    min-height: 84px;
+  }
+
+  .short-preview {
+    min-height: 40px;
+  }
+
+  .board-frame,
+  .score-burst-layer {
+    width: min(100%, 58vw, 172px) !important;
+  }
+
+  .preview-card canvas {
+    max-width: 26px;
+    height: 42px;
+  }
+
+  .short-preview canvas {
+    max-width: 26px;
+    height: 18px;
+  }
+}
+
+@media (max-width: 345px) {
+  .brix-app {
+    padding-bottom: 4px;
+  }
+}
+
+@media (min-width: 521px) and (max-width: 640px) {
+  .brix-layout {
+    grid-template-columns:
+      minmax(0, 22vw)
+      minmax(0, 50vw)
+      minmax(0, 22vw);
+    justify-content: center;
+    gap: 4px;
+  }
+
+  .side-rail {
+    gap: 4px;
+    padding-top: 4px;
+  }
+
+  .cellar-card {
+    padding: 5px;
+    border-radius: 6px;
+  }
+
+  .cellar-card p,
+  .stat-row {
+    font-size: 0.56rem;
+  }
+
+  .stat-row strong {
+    font-size: 0.74rem;
+  }
+
+  .board-column {
+    justify-self: center;
+  }
+
+  .board-frame,
+  .score-burst-layer {
+    width: min(100%, 50vw, 220px) !important;
+  }
+
+  .preview-card:not(.short-preview) {
+    min-height: 102px;
+  }
+
+  .short-preview {
+    min-height: 58px;
+  }
+}
+
+.mobile-controls,
+.optional-controls {
+  display: none !important;
 }

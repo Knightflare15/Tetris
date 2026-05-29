@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import {
-  LINES_PER_LEVEL,
   type InputAction,
   type LineClearEffect,
   type SocialSummary,
@@ -32,7 +31,7 @@ interface ScoreBurst {
 export function App(): ReactElement {
   const game = useBrixGame();
   const [authOpen, setAuthOpen] = useState(false);
-  const [controlsOpen, setControlsOpen] = useState(false);
+  const [socialOpen, setSocialOpen] = useState(false);
   const [practiceSpeed, setPracticeSpeed] = useState<PracticeBotSpeed>("slow");
   const [scoreBursts, setScoreBursts] = useState<ScoreBurst[]>([]);
   const lastSoundEffectIdRef = useRef<number | null>(null);
@@ -48,7 +47,6 @@ export function App(): ReactElement {
   const lines = game.snapshot?.lines ?? 0;
   const combo = game.snapshot?.combo ?? 0;
   const lastClear = game.snapshot?.clearEffect;
-  const progress = (lines % LINES_PER_LEVEL) / LINES_PER_LEVEL;
   const inGame = game.snapshot?.status === "playing" && !game.snapshot.gameOver;
 
   useEffect(() => {
@@ -79,25 +77,6 @@ export function App(): ReactElement {
 
       <section className="brix-layout" aria-label="Quattro game board and match panels">
         <aside className="side-rail left-rail">
-          {game.authMode !== "account" && (
-            <section className="cellar-card welcome-card">
-              <p className="eyebrow">Cat pass</p>
-              <h2>Guest nap</h2>
-              <p>Play now, then login or register when ready.</p>
-              <div className="button-stack">
-                <button type="button" onClick={() => setAuthOpen(true)}>
-                  Login or Register
-                </button>
-                {game.authMode === "guest" && (
-                  <button className="secondary-button" type="button" onClick={game.signOut}>
-                    Clear Guest Session
-                  </button>
-                )}
-              </div>
-            </section>
-          )}
-
-         
           <section className="cellar-card match-card">
             <p className="eyebrow">Current match</p>
             <StatRow label="Level" value={String(level)} />
@@ -105,27 +84,30 @@ export function App(): ReactElement {
             <StatRow label="Lines" value={String(lines)} />
             <StatRow label="Combo" value={combo > 1 ? `x${combo}` : "-"} />
             {lastClear && <StatRow label={lastClear.label} value={`+${lastClear.points}`} />}
-            <WineGlass progress={progress} level={level} clearEffect={lastClear} />
           </section>
 
-           <SocialHub
-            social={game.social}
-            message={game.socialMessage}
-            accountReady={game.authMode === "account"}
-            onAddFriend={game.addFriend}
-            onAccept={game.acceptFriendRequest}
-            onDecline={game.declineFriendRequest}
-            onJoinFriend={game.joinFriend}
-            onRefresh={game.refreshSocial}
-          />
+          <section className="cellar-card compact-card">
+            <div className="card-heading-row compact-card-heading">
+              <p className="eyebrow">Co-op</p>
+              <button className="mini-button secondary-button social-launch-button" type="button" onClick={() => setSocialOpen(true)}>
+                Friends
+              </button>
+            </div>
+            <label className="field-label" htmlFor="displayName">Player name</label>
+            <input
+              id="displayName"
+              maxLength={24}
+              value={game.displayName}
+              onChange={(event) => game.setDisplayName(event.target.value)}
+              placeholder="Player name"
+            />
+            <StatRow label="Room" value={game.roomId ? short(game.roomId) : "-"} />
+            <StatRow label="Slot" value={game.localSlot ?? "-"} />
+            <StatRow label="Latency" value={game.latencyMs === null ? "-" : `${game.latencyMs}ms`} />
+          </section>
         </aside>
 
         <section className="board-column">
-          <div className="board-crown" aria-hidden="true">
-            <span />
-            <strong>Quattro</strong>
-            <span />
-          </div>
           <BoardCanvas snapshot={game.snapshot} localSlot={game.localSlot} onInput = {game.sendInput}/>
           <ScoreBurstLayer bursts={scoreBursts} />
           {!inGame && (
@@ -159,28 +141,8 @@ export function App(): ReactElement {
         <aside className="side-rail right-rail">
           <PreviewCard title="Hold" type={holdType} />
           <QueueCard queue={playerQueue} />
-          <section className="cellar-card compact-card">
-            <p className="eyebrow">Co-op</p>
-            <label className="field-label" htmlFor="displayName">Player name</label>
-            <input
-              id="displayName"
-              maxLength={24}
-              value={game.displayName}
-              onChange={(event) => game.setDisplayName(event.target.value)}
-              placeholder="Player name"
-            />
-            <StatRow label="Room" value={game.roomId ? short(game.roomId) : "-"} />
-            <StatRow label="Slot" value={game.localSlot ?? "-"} />
-            <StatRow label="Latency" value={game.latencyMs === null ? "-" : `${game.latencyMs}ms`} />
-          </section>
         </aside>
       </section>
-
-      <MobileControls
-        expanded={controlsOpen}
-        onToggle={() => setControlsOpen((value) => !value)}
-        onInput={game.sendInput}
-      />
 
       {authOpen && (
         <AuthModal
@@ -211,6 +173,20 @@ export function App(): ReactElement {
           }}
         />
       )}
+
+      {socialOpen && (
+        <FriendsModal
+          social={game.social}
+          message={game.socialMessage}
+          accountReady={game.authMode === "account"}
+          onAddFriend={game.addFriend}
+          onAccept={game.acceptFriendRequest}
+          onClose={() => setSocialOpen(false)}
+          onDecline={game.declineFriendRequest}
+          onJoinFriend={game.joinFriend}
+          onRefresh={game.refreshSocial}
+        />
+      )}
     </main>
   );
 }
@@ -227,22 +203,29 @@ function BoardCanvas({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const animationActiveRef = useRef(false);
-  const lastClearEffectIdRef = useRef<number | null>(null);
+  const lastLockEffectIdRef = useRef<number | null>(null);
 
   const touchRef = useRef<{
     startX: number;
     startY: number;
+    startedAt: number;
     lastSoftDropY: number;
     lastStep: number;
     moved: boolean;
-    longPressTriggered: boolean;
+    softDropActive: boolean;
+    gestureHandled: boolean;
   } | null>(null);
-  const longPressTimerRef = useRef<number | null>(null);
+  const softDropIntervalRef = useRef<number | null>(null);
 
-  const STEP_SIZE = 22;
+  const STEP_SIZE = 18;
   const TAP_DISTANCE = 12;
-  const LONG_PRESS_MS = 420;
-  const LONG_PRESS_MOVE_TOLERANCE = 14;
+  const SOFT_DROP_DRAG_START = 24;
+  const SOFT_DROP_STEP = 24;
+  const SOFT_DROP_INTERVAL_MS = 70;
+  const HARD_DROP_SWIPE_DISTANCE = 82;
+  const HOLD_SWIPE_DISTANCE = 52;
+  const HARD_SWIPE_MAX_DURATION_MS = 280;
+  const SWIPE_HORIZONTAL_TOLERANCE = 30;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -250,9 +233,9 @@ function BoardCanvas({
       return;
     }
 
-    const clearEffectId = snapshot?.clearEffect?.id ?? null;
-    if (clearEffectId !== null && clearEffectId !== lastClearEffectIdRef.current) {
-      lastClearEffectIdRef.current = clearEffectId;
+    const lockEffectId = snapshot?.lockEffect?.id ?? null;
+    if (lockEffectId !== null && lockEffectId !== lastLockEffectIdRef.current) {
+      lastLockEffectIdRef.current = lockEffectId;
       animationActiveRef.current = true;
       const startedAt = performance.now();
       const durationMs = 520;
@@ -299,43 +282,46 @@ function BoardCanvas({
     if (animationFrameRef.current !== null) {
       window.cancelAnimationFrame(animationFrameRef.current);
     }
-    clearLongPressTimer();
+    stopSoftDrop();
   }, []);
 
-  function clearLongPressTimer(): void {
-    if (longPressTimerRef.current !== null) {
-      window.clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
+  function stopSoftDrop(): void {
+    if (softDropIntervalRef.current !== null) {
+      window.clearInterval(softDropIntervalRef.current);
+      softDropIntervalRef.current = null;
     }
+  }
+
+  function startSoftDrop(): void {
+    if (!touchRef.current || touchRef.current.softDropActive) {
+      return;
+    }
+    touchRef.current.softDropActive = true;
+    touchRef.current.moved = true;
+    onInput("softDrop");
+    softDropIntervalRef.current = window.setInterval(() => {
+      onInput("softDrop");
+    }, SOFT_DROP_INTERVAL_MS);
   }
 
   function handleTouchStart(
     e: React.TouchEvent<HTMLCanvasElement>,
   ) {
     e.preventDefault();
-    clearLongPressTimer();
+    stopSoftDrop();
 
     const touch = e.touches[0];
 
     touchRef.current = {
       startX: touch.clientX,
       startY: touch.clientY,
+      startedAt: performance.now(),
       lastSoftDropY: touch.clientY,
       lastStep: 0,
       moved: false,
-      longPressTriggered: false,
+      softDropActive: false,
+      gestureHandled: false,
     };
-
-    longPressTimerRef.current = window.setTimeout(() => {
-      if (!touchRef.current || touchRef.current.moved) {
-        return;
-      }
-
-      touchRef.current.longPressTriggered = true;
-      touchRef.current.moved = true;
-      onInput("hardDrop");
-      clearLongPressTimer();
-    }, LONG_PRESS_MS);
   }
 
   function handleTouchMove(
@@ -356,12 +342,33 @@ function BoardCanvas({
     const softDropDeltaY =
       touch.clientY - touchRef.current.lastSoftDropY;
 
-    if (touchRef.current.longPressTriggered) {
+    if (touchRef.current.gestureHandled) {
       return;
     }
 
-    if (Math.hypot(deltaX, deltaY) > LONG_PRESS_MOVE_TOLERANCE) {
-      clearLongPressTimer();
+    const elapsedMs = performance.now() - touchRef.current.startedAt;
+
+    if (
+      deltaY <= -HOLD_SWIPE_DISTANCE &&
+      Math.abs(deltaX) <= SWIPE_HORIZONTAL_TOLERANCE
+    ) {
+      stopSoftDrop();
+      touchRef.current.gestureHandled = true;
+      touchRef.current.moved = true;
+      onInput("hold");
+      return;
+    }
+
+    if (
+      deltaY >= HARD_DROP_SWIPE_DISTANCE &&
+      Math.abs(deltaX) <= SWIPE_HORIZONTAL_TOLERANCE &&
+      elapsedMs <= HARD_SWIPE_MAX_DURATION_MS
+    ) {
+      stopSoftDrop();
+      touchRef.current.gestureHandled = true;
+      touchRef.current.moved = true;
+      onInput("hardDrop");
+      return;
     }
 
     // LEFT / RIGHT
@@ -374,7 +381,6 @@ function BoardCanvas({
       currentStep - touchRef.current.lastStep;
 
     if (difference > 0) {
-      clearLongPressTimer();
       for (let i = 0; i < difference; i++) {
         onInput("moveRight");
       }
@@ -383,7 +389,6 @@ function BoardCanvas({
     }
 
     if (difference < 0) {
-      clearLongPressTimer();
       for (let i = 0; i < Math.abs(difference); i++) {
         onInput("moveLeft");
       }
@@ -395,12 +400,15 @@ function BoardCanvas({
 
     // SOFT DROP
 
-    if (softDropDeltaY > 28) {
-      clearLongPressTimer();
-      onInput("softDrop");
-
+    if (deltaY > SOFT_DROP_DRAG_START) {
+      if (softDropDeltaY > SOFT_DROP_STEP) {
+        touchRef.current.lastSoftDropY = touch.clientY;
+      }
+      startSoftDrop();
+    } else if (deltaY <= 0 && touchRef.current.softDropActive) {
+      stopSoftDrop();
+      touchRef.current.softDropActive = false;
       touchRef.current.lastSoftDropY = touch.clientY;
-      touchRef.current.moved = true;
     }
   }
 
@@ -408,7 +416,7 @@ function BoardCanvas({
     e: React.TouchEvent<HTMLCanvasElement>,
   ) {
     if (!touchRef.current) return;
-    clearLongPressTimer();
+    stopSoftDrop();
 
     const touch = e.changedTouches[0];
 
@@ -422,7 +430,7 @@ function BoardCanvas({
 
     if (
       Math.hypot(deltaX, deltaY) < TAP_DISTANCE &&
-      !touchRef.current.longPressTriggered &&
+      !touchRef.current.gestureHandled &&
       !touchRef.current.moved
     ) {
       onInput("rotateCW");
@@ -432,7 +440,7 @@ function BoardCanvas({
   }
 
   function handleTouchCancel(): void {
-    clearLongPressTimer();
+    stopSoftDrop();
     touchRef.current = null;
   }
 
@@ -514,7 +522,7 @@ function PreviewCard({ title, type }: { title: string; type: TetrominoType | nul
   );
 }
 
-function SocialHub({
+function FriendsModal({
   social,
   message,
   accountReady,
@@ -523,6 +531,7 @@ function SocialHub({
   onDecline,
   onJoinFriend,
   onRefresh,
+  onClose,
 }: {
   social: SocialSummary | null;
   message: string;
@@ -532,95 +541,120 @@ function SocialHub({
   onDecline: (requestId: string) => Promise<void>;
   onJoinFriend: (friendId: string) => Promise<void>;
   onRefresh: () => Promise<void>;
+  onClose: () => void;
 }): ReactElement {
   const [friendName, setFriendName] = useState("");
   const friends = social?.friends ?? [];
   const incoming = social?.incomingRequests ?? [];
   const leaders = social?.leaderboard ?? [];
 
-  return (
-    <section className="cellar-card social-card">
-      <div className="card-heading-row">
-        <p className="eyebrow">Friends</p>
-        <button className="mini-button" type="button" onClick={() => void onRefresh()} disabled={!accountReady}>
-          Ref
-        </button>
-      </div>
-      <form
-        className="friend-form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (!friendName.trim()) {
-            return;
-          }
-          void onAddFriend(friendName).then(() => setFriendName(""));
-        }}
-      >
-        <input
-          value={friendName}
-          disabled={!accountReady}
-          onChange={(event) => setFriendName(event.target.value)}
-          placeholder="Username"
-          maxLength={24}
-        />
-        <button className="mini-button" type="submit" disabled={!accountReady || !friendName.trim()}>
-          Add
-        </button>
-      </form>
-      <p className="social-message">{message}</p>
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
 
-      {incoming.length > 0 && (
-        <div className="request-list">
-          {incoming.map((request) => (
-            <div className="request-row" key={request.id}>
-              <div className="request-copy">
-                <strong>{request.displayName}</strong>
-                <span>@{request.username}</span>
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <section
+        className="auth-modal friends-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="friendsTitle"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button className="modal-close" type="button" aria-label="Close friends dialog" onClick={onClose}>
+          x
+        </button>
+        <div className="card-heading-row">
+          <div>
+            <p className="eyebrow">Friends</p>
+            <h2 id="friendsTitle">Cat crew</h2>
+          </div>
+          <button className="mini-button" type="button" onClick={() => void onRefresh()} disabled={!accountReady}>
+            Refresh
+          </button>
+        </div>
+        <p>{message}</p>
+        <form
+          className="friend-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!friendName.trim()) {
+              return;
+            }
+            void onAddFriend(friendName).then(() => setFriendName(""));
+          }}
+        >
+          <input
+            value={friendName}
+            disabled={!accountReady}
+            onChange={(event) => setFriendName(event.target.value)}
+            placeholder={accountReady ? "Username" : "Login to add friends"}
+            maxLength={24}
+          />
+          <button className="mini-button" type="submit" disabled={!accountReady || !friendName.trim()}>
+            Add
+          </button>
+        </form>
+
+        {incoming.length > 0 && (
+          <div className="request-list">
+            {incoming.map((request) => (
+              <div className="request-row" key={request.id}>
+                <div className="request-copy">
+                  <strong>{request.displayName}</strong>
+                  <span>@{request.username}</span>
+                </div>
+                <button className="mini-button" type="button" onClick={() => void onAccept(request.id)}>
+                  Accept
+                </button>
+                <button className="mini-button secondary-button" type="button" onClick={() => void onDecline(request.id)}>
+                  No
+                </button>
               </div>
-              <button className="mini-button" type="button" onClick={() => void onAccept(request.id)}>
-                Accept
-              </button>
-              <button className="mini-button secondary-button" type="button" onClick={() => void onDecline(request.id)}>
-                No
+            ))}
+          </div>
+        )}
+
+        <div className="friend-list">
+          {friends.length === 0 && <p className="empty-note">No friends yet.</p>}
+          {friends.map((friend) => (
+            <div className="friend-row" key={friend.userId}>
+              <span className={`presence-dot ${friend.online ? "is-online" : ""}`} />
+              <div className="friend-copy">
+                <strong>{friend.displayName}</strong>
+                <span>{friend.online ? (friend.inGame ? "In game" : "Online") : "Offline"}</span>
+              </div>
+              <button
+                className="mini-button"
+                type="button"
+                disabled={!friend.online || friend.inGame}
+                onClick={() => void onJoinFriend(friend.userId)}
+              >
+                Join
               </button>
             </div>
           ))}
         </div>
-      )}
 
-      <div className="friend-list">
-        {friends.length === 0 && <p className="empty-note">No friends yet.</p>}
-        {friends.map((friend) => (
-          <div className="friend-row" key={friend.userId}>
-            <span className={`presence-dot ${friend.online ? "is-online" : ""}`} />
-            <div className="friend-copy">
-              <strong>{friend.displayName}</strong>
-              <span>{friend.online ? (friend.inGame ? "In game" : "Online") : "Offline"}</span>
+        <div className="leaderboard-list">
+          <p className="eyebrow">Global board</p>
+          {leaders.length === 0 && <p className="empty-note">Finish an account match to place.</p>}
+          {leaders.slice(0, 5).map((entry) => (
+            <div className="leader-row" key={`${entry.userId}-${entry.createdAt}`}>
+              <span>#{entry.rank}</span>
+              <strong className="leader-name">{entry.displayName}</strong>
+              <span>{entry.score.toLocaleString()}</span>
             </div>
-            <button
-              className="mini-button"
-              type="button"
-              disabled={!friend.online || friend.inGame}
-              onClick={() => void onJoinFriend(friend.userId)}
-            >
-              Join
-            </button>
-          </div>
-        ))}
-      </div>
-
-      <div className="leaderboard-list">
-        <p className="eyebrow">Global board</p>
-        {leaders.length === 0 && <p className="empty-note">Finish an account match to place.</p>}
-        {leaders.slice(0, 5).map((entry) => (
-          <div className="leader-row" key={`${entry.userId}-${entry.createdAt}`}>
-            <span>#{entry.rank}</span>
-            <strong className="leader-name">{entry.displayName}</strong>
-            <span>{entry.score.toLocaleString()}</span>
-          </div>
-        ))}
-      </div>
-    </section>
+          ))}
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -817,35 +851,6 @@ function AuthModal({
   );
 }
 
-function WineGlass({
-  progress,
-  level,
-  clearEffect,
-}: {
-  progress: number;
-  level: number;
-  clearEffect?: LineClearEffect;
-}): ReactElement {
-  const fill = Math.max(0.08, Math.min(1, progress || (level > 1 ? 1 : 0.08)));
-  const celebrating = Boolean(clearEffect);
-  return (
-    <div
-      className={`wine-progress ${celebrating ? "is-celebrating" : ""}`}
-      aria-label={`Yarn level progress ${Math.round(fill * 100)} percent`}
-    >
-      <div className="glass-bowl" key={clearEffect?.id ?? "resting"}>
-        <div className="wine-fill" style={{ height: `${fill * 100}%` }} />
-        <span className="wine-bubble bubble-one" />
-        <span className="wine-bubble bubble-two" />
-        <span className="wine-bubble bubble-three" />
-      </div>
-      <div className="glass-stem" />
-      <div className="glass-base" />
-      <span>Wind the yarn to reach the next level.</span>
-    </div>
-  );
-}
-
 function ScoreBurstLayer({ bursts }: { bursts: ScoreBurst[] }): ReactElement {
   return (
     <div className="score-burst-layer" aria-live="polite" aria-atomic="false">
@@ -885,38 +890,6 @@ function createScoreBurst(effect: LineClearEffect): ScoreBurst {
 
 function lineClearCallout(count: number): string {
   return ["", "uno!", "dos!", "tres!!", "quattro!!!"][count] ?? `${count} lines!`;
-}
-
-function MobileControls({ expanded, onToggle, onInput }: {
-  expanded: boolean;
-  onToggle: () => void;
-  onInput: (action: InputAction) => void;
-}): ReactElement {
-  const controls: Array<{ action: InputAction; label: string }> = [
-    { action: "moveLeft", label: "Left" },
-    { action: "rotateCW", label: "Rotate" },
-    { action: "moveRight", label: "Right" },
-    { action: "softDrop", label: "Down" },
-    { action: "hardDrop", label: "Drop" },
-  ];
-
-  return (
-    <section className={`mobile-controls ${expanded ? "is-expanded" : ""}`} aria-label="Mobile controls">
-      <button type="button" aria-expanded={expanded} onClick={onToggle}>
-        Controls
-      </button>
-      <button type="button" onPointerDown={() => onInput("hold")}>
-        Hold
-      </button>
-      <div className="optional-controls">
-        {controls.map((control) => (
-          <button key={control.action} type="button" onPointerDown={() => onInput(control.action)}>
-            {control.label}
-          </button>
-        ))}
-      </div>
-    </section>
-  );
 }
 
 function StatusPill({ status, connected }: { status: string; connected: boolean }): ReactElement {

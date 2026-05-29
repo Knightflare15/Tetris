@@ -41,7 +41,7 @@ export function renderBoard(
   canvas: HTMLCanvasElement,
   snapshot: RoomSnapshot | null,
   localSlot: PlayerSlot | null,
-  lineClearProgress = 1,
+  effectProgress = 1,
 ): void {
   const context = getCanvasContext(canvas);
   context.clearRect(0, 0, canvas.width, canvas.height);
@@ -53,6 +53,10 @@ export function renderBoard(
   }
 
   drawLockedBoard(context, snapshot);
+
+  if (snapshot.lockEffect && effectProgress < 1) {
+    drawLockEffect(context, snapshot.lockEffect.cells, snapshot.lockEffect.value, effectProgress);
+  }
 
   for (const slot of ["A", "B"] as const) {
     const player = snapshot.players[slot];
@@ -86,8 +90,8 @@ export function renderBoard(
     drawActivePiece(context, player.active, alpha);
   }
 
-  if (snapshot.clearEffect && lineClearProgress < 1) {
-    drawLineClearEffect(context, snapshot.clearEffect.rows, boardSize.cols, lineClearProgress);
+  if (snapshot.clearEffect && effectProgress < 1) {
+    drawLineClearEffect(context, snapshot.clearEffect.rows, boardSize.cols, effectProgress);
   }
 }
 
@@ -358,6 +362,59 @@ function drawLineClearEffect(
   context.restore();
 }
 
+function drawLockEffect(
+  context: CanvasRenderingContext2D,
+  cells: Array<{ x: number; y: number }>,
+  value: CellValue,
+  progress: number,
+): void {
+  if (cells.length === 0) {
+    return;
+  }
+
+  const family = familyForValue(value);
+  const alpha = Math.max(0, 1 - progress);
+  const pulse = 1 + (1 - progress) * 0.28;
+
+  context.save();
+  context.globalCompositeOperation = "screen";
+
+  for (const cell of cells) {
+    const centerX = cell.x * BOARD_BLOCK_SIZE + BOARD_BLOCK_SIZE / 2;
+    const centerY = cell.y * BOARD_BLOCK_SIZE + BOARD_BLOCK_SIZE / 2;
+    const radius = BOARD_BLOCK_SIZE * 0.54 * pulse;
+    const gradient = context.createRadialGradient(
+      centerX,
+      centerY,
+      BOARD_BLOCK_SIZE * 0.16,
+      centerX,
+      centerY,
+      radius,
+    );
+    gradient.addColorStop(0, `rgba(255, 255, 255, ${0.7 * alpha})`);
+    gradient.addColorStop(0.45, hexToRgba(family.color, 0.52 * alpha));
+    gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+    context.fillStyle = gradient;
+    context.beginPath();
+    context.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    context.fill();
+
+    context.strokeStyle = hexToRgba(family.color, 0.46 * alpha);
+    context.lineWidth = 2;
+    roundedRect(
+      context,
+      cell.x * BOARD_BLOCK_SIZE + 2,
+      cell.y * BOARD_BLOCK_SIZE + 2,
+      BOARD_BLOCK_SIZE - 4,
+      BOARD_BLOCK_SIZE - 4,
+      6,
+    );
+    context.stroke();
+  }
+
+  context.restore();
+}
+
 function drawPreviewPiece(
   context: CanvasRenderingContext2D,
   type: TetrominoType,
@@ -508,6 +565,14 @@ function lighten(hex: string): string {
   const g = Math.min(255, ((value >> 8) & 255) + 42);
   const b = Math.min(255, (value & 255) + 42);
   return `rgb(${r}, ${g}, ${b})`;
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const value = Number.parseInt(hex.slice(1), 16);
+  const r = (value >> 16) & 255;
+  const g = (value >> 8) & 255;
+  const b = value & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 function getCanvasContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
