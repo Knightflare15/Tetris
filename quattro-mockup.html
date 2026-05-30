@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Quattro — Design Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Lora:wght@500;600&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Inter", "Segoe UI", sans-serif;
+    background: #f0e8d8;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 16px;
+    gap: 40px;
+  }
+
+  h1.page-title {
+    font-family: "Playfair Display", Georgia, serif;
+    color: #6d2347;
+    font-size: 1.5rem;
+    letter-spacing: 0.01em;
+    opacity: 0.5;
+  }
+
+  /* ── Screen card ──────────────────────────────────── */
+  .screen {
+    width: 1200px;
+    max-width: 100%;
+    min-height: 760px;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow:
+      0 40px 100px rgba(140, 100, 60, 0.26),
+      0 0 0 1px rgba(200, 165, 120, 0.18);
+    background:
+      linear-gradient(180deg, rgba(255,252,246,0.3), rgba(255,249,241,0.08)),
+      linear-gradient(180deg, #fff9f0 0%, #f5ead7 48%, #ecd8b8 100%);
+    display: grid;
+    grid-template-rows: auto 1fr;
+    padding: 16px 36px 20px;
+    gap: 0;
+  }
+
+  /* ── Topbar ──────────────────────────────────────── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(180, 148, 104, 0.16);
+    margin-bottom: 14px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .brand-name {
+    font-family: "Playfair Display", Georgia, serif;
+    font-size: 2.8rem;
+    color: #7c334d;
+    line-height: 1;
+  }
+  .brand-sub {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #bb8d61;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .topbar-actions { display: flex; align-items: center; gap: 10px; }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(178,145,108,0.22);
+    background: linear-gradient(180deg, rgba(255,255,255,0.76), rgba(250,243,232,0.96));
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #59875f;
+    box-shadow: 0 6px 20px rgba(153,122,91,0.10);
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #62a66f;
+    box-shadow: 0 0 0 3px rgba(98,166,111,0.18);
+  }
+
+  .btn {
+    border: 1px solid rgba(164,113,104,0.20);
+    border-radius: 8px;
+    padding: 9px 20px;
+    color: #fff8ef;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.28), rgba(255,255,255,0.04) 36%),
+      linear-gradient(180deg, #a04a6e, #803150);
+    font-weight: 800;
+    font-size: 0.9rem;
+    cursor: pointer;
+    text-shadow: 0 1px 0 rgba(71,29,45,0.34);
+    box-shadow:
+      0 10px 22px rgba(129,81,49,0.18),
+      inset 0 1px 0 rgba(255,248,234,0.72);
+    white-space: nowrap;
+  }
+  .btn-green {
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.28), rgba(255,255,255,0.04) 36%),
+      linear-gradient(180deg, #8dae5a, #6d9541);
+    border-color: rgba(120,160,80,0.22);
+    box-shadow: 0 8px 18px rgba(100,140,60,0.18), inset 0 1px 0 rgba(255,248,234,0.72);
+  }
+  .btn-blue {
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.28), rgba(255,255,255,0.04) 36%),
+      linear-gradient(180deg, #6d95c4, #4f78aa);
+    border-color: rgba(80,120,180,0.22);
+    box-shadow: 0 8px 18px rgba(70,100,160,0.18), inset 0 1px 0 rgba(255,248,234,0.72);
+  }
+  .btn-ghost {
+    color: #6d3a4d;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.72), rgba(249,242,230,0.96)),
+      linear-gradient(180deg, #fff7ed, #f2e1cd);
+    border-color: rgba(164,113,104,0.18);
+    box-shadow: 0 6px 16px rgba(143,104,73,0.10), inset 0 1px 0 rgba(255,255,255,0.82);
+  }
+  .btn-sm { padding: 5px 10px; font-size: 0.72rem; border-radius: 6px; }
+
+  /* ── Main layout ─────────────────────────────────── */
+  .game-layout {
+    display: grid;
+    grid-template-columns: 200px 1fr 160px;
+    gap: 16px;
+    align-items: start;
+    min-height: 0;
+  }
+
+  /* ── Cards ───────────────────────────────────────── */
+  .card {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(188,154,119,0.25);
+    border-radius: 10px;
+    padding: 12px 13px;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.86), rgba(250,244,234,0.96)),
+      rgba(255,250,243,0.92);
+    box-shadow:
+      0 14px 36px rgba(177,138,92,0.13),
+      inset 0 0 0 1px rgba(255,255,255,0.55),
+      inset 0 -18px 28px rgba(241,218,184,0.20);
+  }
+  .card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(90deg, rgba(255,255,255,0.42), transparent 28%, transparent 72%, rgba(236,209,170,0.16)),
+      radial-gradient(circle at 0% 0%, rgba(255,236,210,0.72), transparent 36%);
+  }
+  .card > * { position: relative; }
+
+  .eyebrow {
+    font-size: 0.62rem;
+    font-weight: 800;
+    color: #974968;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 8px;
+  }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 0;
+    color: #8d6f5b;
+    font-size: 0.78rem;
+    border-bottom: 1px solid rgba(188,154,119,0.10);
+  }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-value {
+    color: #6f3045;
+    font-size: 1.05rem;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .field-label {
+    display: block;
+    font-size: 0.64rem;
+    font-weight: 800;
+    color: #e8b75e;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 4px;
+  }
+  .field-input {
+    width: 100%;
+    border: 1px solid rgba(171,137,96,0.25);
+    border-radius: 7px;
+    padding: 7px 9px;
+    font-size: 0.78rem;
+    color: #5f3142;
+    background: linear-gradient(180deg, rgba(255,255,255,0.72), rgba(249,242,231,0.94));
+    font-family: inherit;
+    margin-bottom: 8px;
+  }
+  .field-select {
+    width: 100%;
+    border: 1px solid rgba(171,137,96,0.25);
+    border-radius: 7px;
+    padding: 7px 9px;
+    font-size: 0.78rem;
+    color: #5f3142;
+    background: linear-gradient(180deg, rgba(255,255,255,0.82), rgba(248,241,229,0.94));
+    font-family: inherit;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  /* ── Left rail ───────────────────────────────────── */
+  .left-rail {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 12px;
+  }
+
+  .heading-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+
+  /* ── Board column ────────────────────────────────── */
+  .board-column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .board-frame {
+    width: 220px;
+    position: relative;
+    padding: 10px;
+    border: 9px solid #9f6238;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #c9864f, #a15f35 58%, #824522);
+    box-shadow:
+      0 28px 52px rgba(163,113,66,0.24),
+      0 0 0 1px rgba(255,237,198,0.22),
+      inset 0 0 0 3px rgba(255,228,175,0.18),
+      inset 0 -16px 28px rgba(125,69,38,0.24);
+  }
+  .board-frame::after {
+    content: "";
+    position: absolute;
+    inset: 6px;
+    border: 1px solid rgba(255,236,205,0.30);
+    border-radius: 3px;
+    pointer-events: none;
+  }
+  .board-canvas {
+    width: 100%;
+    aspect-ratio: 10/20;
+    background: #261126;
+    border-radius: 4px;
+    box-shadow: inset 0 0 32px rgba(0,0,0,0.48);
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    grid-template-rows: repeat(20, 1fr);
+    gap: 1px;
+    padding: 3px;
+    overflow: hidden;
+  }
+
+  /* Sample blocks drawn on the board */
+  .block { border-radius: 2px; opacity: 0.92; }
+  .b-cyan   { background: linear-gradient(135deg, #4fc8d0, #2aa0a8); }
+  .b-purple { background: linear-gradient(135deg, #9b6abf, #7045a0); }
+  .b-red    { background: linear-gradient(135deg, #d95050, #b83030); }
+  .b-orange { background: linear-gradient(135deg, #e08840, #c06020); }
+  .b-yellow { background: linear-gradient(135deg, #d8c040, #b8a020); }
+  .b-green  { background: linear-gradient(135deg, #60b860, #409840); }
+  .b-blue   { background: linear-gradient(135deg, #5090d8, #3070b8); }
+  .b-empty  { background: rgba(255,255,255,0.03); }
+
+  .match-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    width: 100%;
+    max-width: 360px;
+  }
+
+  .speed-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #8f654f;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  /* ── Right rail ──────────────────────────────────── */
+  .right-rail {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 12px;
+  }
+
+  .preview-canvas {
+    width: 100%;
+    max-width: 100px;
+    margin: 0 auto 6px;
+    border: 1px solid rgba(192,160,124,0.22);
+    border-radius: 7px;
+    background:
+      radial-gradient(circle at 50% 0%, rgba(255,241,207,0.62), transparent 58%),
+      rgba(255,248,239,0.88);
+    box-shadow: inset 0 0 18px rgba(206,176,143,0.20), 0 6px 18px rgba(171,136,101,0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.2rem;
+    padding: 14px 8px;
+  }
+  .preview-card { text-align: center; }
+  .preview-label {
+    font-size: 0.66rem;
+    font-weight: 700;
+    color: #7c334d;
+    margin-top: 4px;
+    display: block;
+  }
+
+  /* ── Score burst (decorative) ─────────────────────── */
+  .burst-demo {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+  .burst {
+    padding: 7px 12px 8px;
+    border: 1px solid rgba(255,238,198,0.58);
+    border-radius: 8px;
+    color: #fff8dd;
+    text-align: center;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.28), rgba(255,255,255,0.04) 34%),
+      linear-gradient(150deg, rgba(203,37,89,0.94), rgba(70,17,57,0.90));
+    box-shadow: 0 8px 24px rgba(20,7,22,0.30);
+  }
+  .burst strong { display: block; font-family: "Playfair Display", serif; font-size: 1rem; color: #fff7c7; }
+  .burst span   { display: block; font-size: 0.6rem; font-weight: 800; color: #9edfcf; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
+  .burst-combo  { background: linear-gradient(150deg, rgba(211,75,54,0.96), rgba(108,35,32,0.92)); }
+  .burst-tspin  { background: linear-gradient(150deg, rgba(40,146,145,0.96), rgba(50,26,74,0.94)); border-color: rgba(158,223,207,0.76); }
+
+  /* ── Annotations panel ───────────────────────────── */
+  .annotations {
+    width: 1200px;
+    max-width: 100%;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .anno-card {
+    border-radius: 10px;
+    padding: 16px;
+    background: rgba(255,250,243,0.90);
+    border: 1px solid rgba(188,154,119,0.22);
+    box-shadow: 0 6px 20px rgba(160,120,80,0.10);
+  }
+  .anno-title {
+    font-family: "Playfair Display", serif;
+    font-size: 0.9rem;
+    color: #7c334d;
+    margin-bottom: 8px;
+  }
+  .anno-swatch {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .swatch {
+    width: 32px; height: 32px;
+    border-radius: 6px;
+    border: 1px solid rgba(180,140,100,0.18);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.10);
+    position: relative;
+    cursor: default;
+  }
+  .swatch[title]:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: 36px; left: 50%;
+    transform: translateX(-50%);
+    background: #5f3142;
+    color: #fff8ef;
+    padding: 3px 7px;
+    border-radius: 5px;
+    font-size: 0.62rem;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .anno-text { font-size: 0.74rem; color: #8d6f5b; line-height: 1.5; }
+  .anno-font { font-size: 1.1rem; color: #5f3142; font-weight: 700; margin-bottom: 4px; }
+  .anno-type-row { display: flex; flex-direction: column; gap: 3px; }
+  .type-sample { color: #5f3142; }
+
+  /* ── Footer note ─────────────────────────────────── */
+  .footer-note {
+    font-size: 0.72rem;
+    color: #bb8d61;
+    opacity: 0.7;
+    text-align: center;
+    font-style: italic;
+  }
+</style>
+</head>
+<body>
+
+<h1 class="page-title">🐱 Quattro — Design Mockup</h1>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!--  SCREEN                                             -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="screen">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="brand">
+      <span class="brand-name">Quattro</span>
+      <span class="brand-sub">🐱 cat blocks</span>
+    </div>
+    <div class="topbar-actions">
+      <div class="status-pill">
+        <span class="status-dot"></span>
+        Connected
+      </div>
+      <button class="btn">Login</button>
+    </div>
+  </div>
+
+  <!-- 3-column layout -->
+  <div class="game-layout">
+
+    <!-- ── LEFT RAIL ── -->
+    <div class="left-rail">
+
+      <!-- Match stats card -->
+      <div class="card">
+        <p class="eyebrow">Current match</p>
+        <div class="stat-row"><span>Level</span> <strong class="stat-value">4</strong></div>
+        <div class="stat-row"><span>Score</span> <strong class="stat-value">24,680</strong></div>
+        <div class="stat-row"><span>Lines</span> <strong class="stat-value">38</strong></div>
+        <div class="stat-row"><span>Combo</span> <strong class="stat-value">x3</strong></div>
+        <div class="stat-row"><span>dos!</span>   <strong class="stat-value" style="color:#9b4266;">+800</strong></div>
+      </div>
+
+      <!-- Co-op card -->
+      <div class="card">
+        <div class="heading-row">
+          <p class="eyebrow" style="margin:0">Co-op</p>
+          <button class="btn btn-ghost btn-sm">Friends</button>
+        </div>
+        <label class="field-label" for="pname">Player name</label>
+        <input class="field-input" id="pname" type="text" value="CatLover99" placeholder="Player name" />
+        <div class="stat-row"><span>Room</span>   <strong class="stat-value" style="font-size:0.82rem;">a3f9b1</strong></div>
+        <div class="stat-row"><span>Slot</span>   <strong class="stat-value" style="font-size:0.82rem;">A</strong></div>
+        <div class="stat-row"><span>Latency</span><strong class="stat-value" style="font-size:0.82rem;">28ms</strong></div>
+      </div>
+
+    </div><!-- /left-rail -->
+
+    <!-- ── BOARD COLUMN ── -->
+    <div class="board-column">
+
+      <div class="board-frame">
+        <!-- 10×20 block grid with sample tetrominos -->
+        <div class="board-canvas">
+          <!-- Row 1–11: empty -->
+          <script>
+            // Emit 110 empty cells (rows 1–11)
+            for (let i = 0; i < 110; i++) document.write('<div class="block b-empty"></div>');
+          </script>
+          <!-- Row 12: cyan I-piece -->
+          <div class="block b-empty"></div><div class="block b-empty"></div>
+          <div class="block b-cyan"></div><div class="block b-cyan"></div><div class="block b-cyan"></div><div class="block b-cyan"></div>
+          <div class="block b-empty"></div><div class="block b-empty"></div><div class="block b-empty"></div><div class="block b-empty"></div>
+          <!-- Row 13: purple T -->
+          <div class="block b-empty"></div>
+          <div class="block b-purple"></div><div class="block b-purple"></div><div class="block b-purple"></div>
+          <div class="block b-empty"></div><div class="block b-empty"></div><div class="block b-empty"></div><div class="block b-empty"></div><div class="block b-empty"></div><div class="block b-empty"></div>
+          <!-- Row 14: partial -->
+          <div class="block b-empty"></div><div class="block b-empty"></div>
+          <div class="block b-purple"></div>
+          <div class="block b-empty"></div><div class="block b-empty"></div><div class="block b-empty"></div><div class="block b-empty"></div><div class="block b-empty"></div><div class="block b-empty"></div><div class="block b-empty"></div>
+          <!-- Row 15: red S -->
+          <div class="block b-empty"></div><div class="block b-empty"></div><div class="block b-empty"></div>
+          <div class="block b-red"></div><div class="block b-red"></div>
+          <div class="block b-empty"></div><div class="block b-empty"></div><div class="block b-empty"></div><div class="block b-empty"></div><div class="block b-empty"></div>
+          <!-- Row 16 -->
+          <div class="block b-empty"></div><div class="block b-empty"></div>
+          <div class="block b-red"></div><div class="block b-red"></div>
+          <div class="block b-empty"></div><div class="block b-empty"></div><div class="block b-empty"></div><div class="block b-empty"></div><div class="block b-empty"></div><div class="block b-empty"></div>
+          <!-- Row 17: packed bottom -->
+          <div class="block b-orange"></div><div class="block b-orange"></div><div class="block b-yellow"></div><div class="block b-yellow"></div>
+          <div class="block b-green"></div><div class="block b-green"></div>
+          <div class="block b-blue"></div><div class="block b-empty"></div><div class="block b-empty"></div><div class="block b-empty"></div>
+          <!-- Row 18 -->
+          <div class="block b-orange"></div><div class="block b-cyan"></div><div class="block b-cyan"></div><div class="block b-yellow"></div>
+          <div class="block b-green"></div><div class="block b-green"></div>
+          <div class="block b-blue"></div><div class="block b-blue"></div><div class="block b-empty"></div><div class="block b-empty"></div>
+          <!-- Row 19 -->
+          <div class="block b-purple"></div><div class="block b-orange"></div><div class="block b-cyan"></div><div class="block b-red"></div>
+          <div class="block b-yellow"></div><div class="block b-green"></div>
+          <div class="block b-blue"></div><div class="block b-blue"></div><div class="block b-orange"></div><div class="block b-empty"></div>
+          <!-- Row 20: almost full -->
+          <div class="block b-purple"></div><div class="block b-purple"></div><div class="block b-cyan"></div><div class="block b-red"></div>
+          <div class="block b-red"></div><div class="block b-yellow"></div>
+          <div class="block b-green"></div><div class="block b-blue"></div><div class="block b-orange"></div><div class="block b-cyan"></div>
+        </div>
+      </div>
+
+      <!-- Score bursts demo -->
+      <div class="burst-demo">
+        <div class="burst">
+          <strong>dos!</strong>
+          <span>+800</span>
+        </div>
+        <div class="burst burst-combo">
+          <strong>tres!!</strong>
+          <span>+1400 / combo</span>
+        </div>
+        <div class="burst burst-tspin">
+          <strong>T-Spin!</strong>
+          <span>+1200 / back-to-back</span>
+        </div>
+      </div>
+
+      <!-- Bot speed + actions -->
+      <div class="speed-row">
+        <span>Bot speed</span>
+        <select class="field-select" style="width:auto;min-width:110px;margin:0;font-size:0.72rem;">
+          <option>Slow start</option>
+          <option>Balanced</option>
+          <option>Quick</option>
+        </select>
+      </div>
+
+      <div class="match-actions" style="max-width:340px;">
+        <button class="btn">Find Match</button>
+        <button class="btn btn-green">Practice</button>
+        <button class="btn btn-blue">Reconnect</button>
+      </div>
+
+    </div><!-- /board-column -->
+
+    <!-- ── RIGHT RAIL ── -->
+    <div class="right-rail">
+
+      <!-- Hold card -->
+      <div class="card preview-card">
+        <p class="eyebrow">Hold</p>
+        <div class="preview-canvas" style="aspect-ratio:1.2;font-size:2.6rem;">🟦</div>
+        <span class="preview-label">I — River</span>
+      </div>
+
+      <!-- Next queue card -->
+      <div class="card preview-card">
+        <p class="eyebrow">Next cats</p>
+        <div class="preview-canvas" style="aspect-ratio:0.6;font-size:1.8rem;flex-direction:column;gap:6px;padding:10px 6px;">
+          <span>🟧</span>
+          <span>🟪</span>
+          <span>🟩</span>
+          <span>🟨</span>
+          <span>🟥</span>
+        </div>
+      </div>
+
+    </div><!-- /right-rail -->
+
+  </div><!-- /game-layout -->
+</div><!-- /screen -->
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!--  DESIGN ANNOTATIONS                                 -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="annotations">
+
+  <!-- Colors -->
+  <div class="anno-card">
+    <p class="anno-title">Colour Palette</p>
+    <div class="anno-swatch">
+      <div class="swatch" style="background:#fff9f0;" title="Paper #fff9f0"></div>
+      <div class="swatch" style="background:#ecd8b8;" title="Parchment #ecd8b8"></div>
+      <div class="swatch" style="background:#9b4266;" title="Wine #9b4266"></div>
+      <div class="swatch" style="background:#6d2347;" title="Deep Wine #6d2347"></div>
+      <div class="swatch" style="background:#a04a6e;" title="Rose #a04a6e"></div>
+      <div class="swatch" style="background:#e2ba76;" title="Gold #e2ba76"></div>
+      <div class="swatch" style="background:#d8a56d;" title="Cork #d8a56d"></div>
+      <div class="swatch" style="background:#91ad5a;" title="Leaf #91ad5a"></div>
+      <div class="swatch" style="background:#6aa59b;" title="Teal #6aa59b"></div>
+      <div class="swatch" style="background:#5f3142;" title="Ink #5f3142"></div>
+      <div class="swatch" style="background:#261126;" title="Board #261126"></div>
+      <div class="swatch" style="background:#9f6238;" title="Wood #9f6238"></div>
+    </div>
+    <p class="anno-text">Warm cream base with wine/rose accents. Wood frame around the board. Leaf green for positive states.</p>
+  </div>
+
+  <!-- Typography -->
+  <div class="anno-card">
+    <p class="anno-title">Typography</p>
+    <div class="anno-type-row">
+      <span class="type-sample" style="font-family:'Playfair Display',serif;font-size:1.8rem;color:#7c334d;">Quattro</span>
+      <span class="anno-text">Playfair Display Bold — brand / headings</span>
+      <span class="type-sample" style="font-family:'Lora',serif;font-size:1rem;color:#5f3142;margin-top:6px;">Card title, h2</span>
+      <span class="anno-text">Lora SemiBold — card headings</span>
+      <span class="type-sample" style="font-family:'Inter',sans-serif;font-size:0.9rem;font-weight:700;color:#5f3142;margin-top:6px;">Score 24,680</span>
+      <span class="anno-text">Inter Bold/ExtraBold — UI labels, values</span>
+    </div>
+  </div>
+
+  <!-- Spacing & radius -->
+  <div class="anno-card">
+    <p class="anno-title">Spacing & Radius</p>
+    <p class="anno-text" style="line-height:1.9;">
+      Card radius: <strong>10px</strong><br/>
+      Button radius: <strong>8px</strong><br/>
+      Pill radius: <strong>999px</strong><br/>
+      Card padding: <strong>12–14px</strong><br/>
+      Layout gap: <strong>16px</strong><br/>
+      Rail gap: <strong>10px</strong><br/>
+      Board border: <strong>9px solid #9f6238</strong><br/>
+      Board inner: <strong>background #261126</strong>
+    </p>
+  </div>
+
+  <!-- Components -->
+  <div class="anno-card">
+    <p class="anno-title">Key Components</p>
+    <p class="anno-text" style="line-height:1.9;">
+      <strong>Status Pill</strong> — rounded, gradient white bg, green text when online<br/>
+      <strong>Cellar Card</strong> — warm white gradient, inner highlight edge, cork-warm shadow<br/>
+      <strong>Board Frame</strong> — wood gradient border, dark canvas, gold inner glow<br/>
+      <strong>Score Bursts</strong> — wine (line clear), red (combo), teal (T-spin)<br/>
+      <strong>Buttons</strong> — wine primary, green practice, blue reconnect, ghost secondary<br/>
+      <strong>Stat Row</strong> — label muted, value in deep wine, tabular-nums
+    </p>
+  </div>
+
+</div>
+
+<p class="footer-note">Quattro · cozy cat-themed Tetris · design reference · generated from src/index.css + App.tsx</p>
+
+</body>
+</html>
