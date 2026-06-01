@@ -41,7 +41,8 @@ export function renderBoard(
   canvas: HTMLCanvasElement,
   snapshot: RoomSnapshot | null,
   localSlot: PlayerSlot | null,
-  effectProgress = 1,
+  lockEffectProgress = 1,
+  clearEffectProgress = 1,
 ): void {
   const context = getCanvasContext(canvas);
   context.clearRect(0, 0, canvas.width, canvas.height);
@@ -54,8 +55,8 @@ export function renderBoard(
 
   drawLockedBoard(context, snapshot);
 
-  if (snapshot.lockEffect && effectProgress < 1) {
-    drawLockEffect(context, snapshot.lockEffect.cells, snapshot.lockEffect.value, effectProgress);
+  if (snapshot.lockEffect && lockEffectProgress < 1) {
+    drawLockEffect(context, snapshot.lockEffect.cells, snapshot.lockEffect.value, lockEffectProgress);
   }
 
   for (const slot of ["A", "B"] as const) {
@@ -90,8 +91,8 @@ export function renderBoard(
     drawActivePiece(context, player.active, alpha);
   }
 
-  if (snapshot.clearEffect && effectProgress < 1) {
-    drawLineClearEffect(context, snapshot.clearEffect.rows, boardSize.cols, effectProgress);
+  if (snapshot.clearEffect && clearEffectProgress < 1) {
+    drawLineClearEffect(context, snapshot.clearEffect.rows, boardSize.cols, clearEffectProgress);
   }
 }
 

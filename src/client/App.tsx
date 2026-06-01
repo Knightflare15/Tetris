@@ -204,6 +204,11 @@ function BoardCanvas({
   const animationFrameRef = useRef<number | null>(null);
   const animationActiveRef = useRef(false);
   const lastLockEffectIdRef = useRef<number | null>(null);
+  const lastClearEffectIdRef = useRef<number | null>(null);
+  const effectStartTimesRef = useRef<{
+    clear: number | null;
+    lock: number | null;
+  }>({ clear: null, lock: null });
 
   const touchRef = useRef<{
     startX: number;
@@ -234,19 +239,44 @@ function BoardCanvas({
     }
 
     const lockEffectId = snapshot?.lockEffect?.id ?? null;
+    const clearEffectId = snapshot?.clearEffect?.id ?? null;
+    const now = performance.now();
+    let shouldAnimate = false;
+
     if (lockEffectId !== null && lockEffectId !== lastLockEffectIdRef.current) {
       lastLockEffectIdRef.current = lockEffectId;
-      animationActiveRef.current = true;
-      const startedAt = performance.now();
-      const durationMs = 520;
+      effectStartTimesRef.current.lock = now;
+      shouldAnimate = true;
+    }
 
-      const animate = (now: number) => {
-        const progress = Math.min(1, (now - startedAt) / durationMs);
-        renderBoard(canvas, snapshot, localSlot, progress);
-        if (progress < 1) {
+    if (clearEffectId !== null && clearEffectId !== lastClearEffectIdRef.current) {
+      lastClearEffectIdRef.current = clearEffectId;
+      effectStartTimesRef.current.clear = now;
+      shouldAnimate = true;
+    }
+
+    if (shouldAnimate) {
+      animationActiveRef.current = true;
+      const lockDurationMs = 520;
+      const clearDurationMs = 420;
+
+      const animate = (frameNow: number) => {
+        const lockStartedAt = effectStartTimesRef.current.lock;
+        const clearStartedAt = effectStartTimesRef.current.clear;
+        const lockProgress = lockStartedAt === null
+          ? 1
+          : Math.min(1, (frameNow - lockStartedAt) / lockDurationMs);
+        const clearProgress = clearStartedAt === null
+          ? 1
+          : Math.min(1, (frameNow - clearStartedAt) / clearDurationMs);
+
+        renderBoard(canvas, snapshot, localSlot, lockProgress, clearProgress);
+        if (lockProgress < 1 || clearProgress < 1) {
           animationFrameRef.current = window.requestAnimationFrame(animate);
           return;
         }
+        effectStartTimesRef.current.lock = null;
+        effectStartTimesRef.current.clear = null;
         animationActiveRef.current = false;
         renderBoard(canvas, snapshot, localSlot);
       };
@@ -282,6 +312,8 @@ function BoardCanvas({
     if (animationFrameRef.current !== null) {
       window.cancelAnimationFrame(animationFrameRef.current);
     }
+    effectStartTimesRef.current.clear = null;
+    effectStartTimesRef.current.lock = null;
     stopSoftDrop();
   }, []);
 
@@ -449,16 +481,18 @@ function BoardCanvas({
       className="board-frame"
       aria-label="Quattro board"
     >
-      <canvas
-        ref={canvasRef}
-        width={BOARD_CANVAS_WIDTH}
-        height={BOARD_CANVAS_HEIGHT}
-        style={{ aspectRatio: `${BOARD_CANVAS_WIDTH} / ${BOARD_CANVAS_HEIGHT}` }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchCancel}
-      />
+      <div className="board-playfield">
+        <canvas
+          ref={canvasRef}
+          width={BOARD_CANVAS_WIDTH}
+          height={BOARD_CANVAS_HEIGHT}
+          style={{ aspectRatio: `${BOARD_CANVAS_WIDTH} / ${BOARD_CANVAS_HEIGHT}` }}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchCancel}
+        />
+      </div>
     </section>
   );
 }
@@ -568,12 +602,12 @@ function FriendsModal({
         onClick={(event) => event.stopPropagation()}
       >
         <button className="modal-close" type="button" aria-label="Close friends dialog" onClick={onClose}>
-          x
+          ×
         </button>
         <div className="card-heading-row">
           <div>
             <p className="eyebrow">Friends</p>
-            <h2 id="friendsTitle">Cat crew</h2>
+            <h2 id="friendsTitle">Friends</h2>
           </div>
           <button className="mini-button" type="button" onClick={() => void onRefresh()} disabled={!accountReady}>
             Refresh
