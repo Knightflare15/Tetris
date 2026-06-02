@@ -21,6 +21,9 @@
   --app-gutter: clamp(6px, 2.5vw, 16px);
   --layout-gap: clamp(4px, 1.6vw, 16px);
   --panel-pad: clamp(7px, 1.2vw, 14px);
+  --panel-frame-pad-y: clamp(18px, 2vw, 24px);
+  --panel-frame-pad-x: clamp(20px, 2.2vw, 28px);
+  --panel-frame-inset: clamp(13px, 1.5vw, 17px);
   --button-y: clamp(7px, 1.1vw, 11px);
   --button-x: clamp(7px, 1.5vw, 18px);
   --control-font: clamp(0.68rem, 1.65vw, 1rem);
@@ -284,33 +287,46 @@ canvas {
 
 .cellar-card {
   position: relative;
-  overflow: hidden;
-  border: 3px solid var(--pixel-outline);
-  border-radius: 14px;
-  padding: var(--panel-pad);
-  background:
-    linear-gradient(180deg, rgba(255, 251, 238, 0.92), rgba(255, 242, 213, 0.98)),
-    var(--panel-fill);
-  box-shadow:
-    0 6px 0 rgba(73, 39, 24, 0.34),
-    0 16px 40px rgba(177, 138, 92, 0.14),
-    inset 0 0 0 2px rgba(255, 251, 235, 0.72),
-    inset 0 -18px 30px rgba(241, 218, 184, 0.18);
+  isolation: isolate;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  padding: var(--panel-frame-pad-y) var(--panel-frame-pad-x);
+  background-clip: padding-box;
+  box-shadow: none;
 }
 
 .cellar-card::before {
   position: absolute;
-  inset: 0;
+  inset: var(--panel-frame-inset);
+  z-index: 0;
   pointer-events: none;
-  background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.34), transparent 24%, transparent 76%, rgba(236, 209, 170, 0.1)),
-    radial-gradient(circle at 0% 0%, rgba(255, 236, 210, 0.44), transparent 34%);
+  border-radius: 14px;
   opacity: 0.9;
   content: "";
 }
 
-.cellar-card h2 {
+.cellar-card::after {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: url("./assets/vineyard/border.png") center / 143% 151% no-repeat;
+  content: "";
+}
+
+.cellar-card > * {
   position: relative;
+  z-index: 1;
+}
+
+.preview-card {
+  --panel-frame-pad-y: clamp(14px, 1.6vw, 18px);
+  --panel-frame-pad-x: clamp(14px, 1.6vw, 18px);
+  --panel-frame-inset: clamp(12px, 1.3vw, 15px);
+}
+
+.cellar-card h2 {
   margin: 0 0 clamp(5px, 0.8vw, 8px);
   font-family: Georgia, "Times New Roman", serif;
   color: #702f46;
@@ -319,7 +335,6 @@ canvas {
 }
 
 .cellar-card p {
-  position: relative;
   margin: 0 0 clamp(7px, 1vw, 12px);
   color: var(--muted);
   font-size: var(--body-copy);
@@ -526,6 +541,7 @@ canvas {
   width: 100%;
   min-width: 0;
   justify-items: center;
+  gap: 1em;
 }
 
 .board-frame {
@@ -536,21 +552,20 @@ canvas {
   padding: 0;
   border: 0;
   border-radius: 0;
-  box-shadow: 0 28px 40px rgba(116, 64, 110, 0.18);
 }
 
 .board-frame::after {
   position: absolute;
-  inset: -4.1% -4% -3.6%;
+  inset: -9.7% -6% -6%;
   background: url("./assets/vineyard/board.png") center / 100% 100% no-repeat;
   pointer-events: none;
-  z-index: 0;
+  z-index: 1;
   content: "";
 }
 
 .board-playfield {
   position: absolute;
-  inset: 8.6% 5.7% 10.8% 8.5%;
+  inset: 8.6% 6% 1.8% 7%;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -604,7 +619,7 @@ canvas {
   gap: clamp(5px, 1vw, 10px);
   width: min(100%, 360px);
   margin-top: clamp(7px, 1vw, 12px);
-  color: #8f654f;
+  color: #361402;
   font-size: clamp(0.62rem, 1.5vw, 0.82rem);
   font-weight: 900;
   text-transform: uppercase;
@@ -638,8 +653,7 @@ canvas {
   margin: 0 auto 6px;
   border: 3px solid var(--pixel-outline);
   border-radius: 10px;
-  background:
-    linear-gradient(180deg, rgba(82, 32, 87, 0.96), rgba(36, 17, 43, 0.98));
+  background: #24142b;
   box-shadow:
     inset 0 0 22px rgba(206, 176, 143, 0.12),
     0 8px 18px rgba(171, 136, 101, 0.12);
@@ -2260,4 +2274,902 @@ canvas {
 .mobile-controls,
 .optional-controls {
   display: none !important;
+}
+
+.queue-preview-card,
+.hold-preview-card {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+}
+
+.queue-preview-card canvas {
+  width: 100%;
+  height: auto;
+  max-width: clamp(60px, 10.5vw, 112px);
+  aspect-ratio: 1 / 1.85;
+  margin: 0 auto 2px;
+}
+
+.hold-preview-card canvas {
+  width: 100%;
+  height: auto;
+  max-width: clamp(60px, 10.5vw, 112px);
+  aspect-ratio: 1 / 0.82;
+  margin: 0 auto 2px;
+}
+
+.hold-preview-card strong {
+  line-height: 1.05;
+}
+
+@media (max-width: 520px) {
+  .queue-preview-card canvas {
+    max-width: 42px;
+    aspect-ratio: 1 / 1.65;
+  }
+
+  .hold-preview-card canvas {
+    max-width: 42px;
+    aspect-ratio: 1 / 0.74;
+  }
+}
+
+@media (max-width: 345px) {
+  .queue-preview-card canvas {
+    max-width: 34px;
+  }
+
+  .hold-preview-card canvas {
+    max-width: 34px;
+  }
+}
+
+.stat-row,
+.cellar-card p,
+.cellar-card h2,
+.cellar-card strong,
+.field-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 960px), (max-height: 760px) {
+  .cellar-card {
+    isolation: auto;
+    border: 3px solid var(--pixel-outline);
+    border-radius: 14px;
+    padding: var(--panel-pad);
+    box-shadow:
+      0 6px 0 rgba(73, 39, 24, 0.34),
+      0 16px 40px rgba(177, 138, 92, 0.14),
+      inset 0 0 0 2px rgba(255, 251, 235, 0.72),
+      inset 0 -18px 30px rgba(241, 218, 184, 0.18);
+  }
+
+  .cellar-card::before {
+    inset: 0;
+    border-radius: 14px;
+  }
+
+  
+}
+
+/* Final responsive shell override: one source of truth for app layout. */
+.brix-app {
+  width: min(1280px, calc(100% - (var(--app-gutter) * 2)));
+  min-height: 100dvh;
+  height: auto;
+  padding: clamp(8px, 1.8vw, 18px) 0 24px;
+}
+
+.brix-layout {
+  display: grid;
+  gap: clamp(12px, 2vw, 24px);
+  align-items: start;
+}
+
+.left-rail {
+  grid-area: left;
+}
+
+.board-column {
+  grid-area: board;
+  align-self: start;
+  justify-items: center;
+}
+
+.right-rail {
+  grid-area: right;
+}
+
+.side-rail {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(12px, 1.6vw, 18px);
+  padding-top: 0;
+  max-height: none;
+}
+
+.cellar-card {
+  --panel-frame-pad-y: clamp(18px, 2vw, 24px);
+  --panel-frame-pad-x: clamp(20px, 2.2vw, 28px);
+  --panel-frame-inset: clamp(13px, 1.5vw, 17px);
+  position: relative;
+  overflow: visible;
+  isolation: isolate;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: var(--panel-frame-pad-y) var(--panel-frame-pad-x) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 251, 238, 0.92), rgba(255, 242, 213, 0.98)),
+    var(--panel-fill);
+  background-clip: padding-box;
+  box-shadow: none !important;
+}
+
+.cellar-card::before {
+  inset: var(--panel-frame-inset) !important;
+  border-radius: 14px;
+}
+
+.cellar-card::after {
+  display: block !important;
+  inset: -5% -5% -5%;
+  z-index: 1;
+  background: url("./assets/vineyard/border.png") center / 143% 151% no-repeat;
+}
+
+.cellar-card > * {
+  position: relative;
+  z-index: 0;
+}
+
+.cellar-card h2,
+.cellar-card p,
+.cellar-card strong,
+.field-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.match-card .stat-row,
+.compact-card .stat-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: clamp(4px, 0.8vw, 12px);
+}
+
+.match-card .stat-row strong,
+.compact-card .stat-row strong {
+  text-align: right;
+}
+
+.compact-card input {
+  margin-bottom: clamp(8px, 1vw, 12px);
+}
+
+.preview-card {
+  --panel-frame-pad-y: clamp(14px, 1.6vw, 18px);
+  --panel-frame-pad-x: clamp(14px, 1.6vw, 18px);
+  --panel-frame-inset: clamp(12px, 1.3vw, 15px);
+  text-align: center;
+}
+
+.preview-card canvas,
+.short-preview canvas {
+  width: 100% !important;
+  height: auto !important;
+  max-width: 100%;
+}
+
+.queue-preview-card canvas {
+  max-width: clamp(84px, 11vw, 118px);
+  aspect-ratio: 1 / 1.8;
+}
+
+.hold-preview-card canvas {
+  max-width: clamp(84px, 11vw, 118px);
+  aspect-ratio: 1 / 0.82;
+}
+
+.board-frame {
+  width: min(100%, clamp(250px, 30vw, 390px)) !important;
+}
+
+.score-burst-layer {
+  width: min(100%, clamp(250px, 30vw, 390px)) !important;
+}
+
+.practice-speed-control {
+  width: min(100%, 340px);
+}
+
+.match-actions {
+  width: min(100%, 420px);
+}
+
+@media (min-width: 1101px) {
+  .brix-layout {
+    grid-template-columns: minmax(220px, 260px) minmax(300px, 390px) minmax(220px, 260px);
+    grid-template-areas: "left board right";
+    justify-content: center;
+  }
+
+  .left-rail,
+  .right-rail {
+    padding-top: clamp(34px, 5vh, 72px);
+  }
+}
+
+@media (min-width: 721px) and (max-width: 1100px) {
+  .brix-app {
+    width: min(980px, calc(100% - (var(--app-gutter) * 2)));
+  }
+
+  .brix-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "board board"
+      "left right";
+    justify-content: center;
+  }
+
+  .board-column {
+    width: 100%;
+    max-width: 420px;
+    justify-self: center;
+  }
+
+  .side-rail {
+    display: flex !important;
+    width: 100%;
+  }
+
+  .cellar-card {
+    --panel-frame-pad-y: clamp(15px, 1.8vw, 18px);
+    --panel-frame-pad-x: clamp(16px, 1.9vw, 20px);
+    --panel-frame-inset: clamp(11px, 1.3vw, 13px);
+  }
+
+  .friend-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .friend-form .mini-button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 720px) {
+  .brix-app {
+    width: min(100%, 460px);
+    padding-bottom: 20px;
+  }
+
+  .brix-topbar {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .brand-lockup {
+    width: 140px;
+    min-width: 140px;
+    height: 52px;
+  }
+
+  .topbar-actions {
+    margin-left: auto;
+    gap: 6px;
+  }
+
+  .status-pill {
+    min-width: 96px;
+    max-width: none;
+  }
+
+  .brix-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "board"
+      "left"
+      "right";
+    width: min(100%, 390px);
+    margin: 0 auto;
+    gap: 12px;
+  }
+
+  .board-column,
+  .left-rail,
+  .right-rail {
+    width: 100%;
+  }
+
+  .side-rail {
+    display: flex !important;
+    gap: 12px;
+  }
+
+  .cellar-card {
+    --panel-frame-pad-y: 14px;
+    --panel-frame-pad-x: 14px;
+    --panel-frame-inset: 10px;
+  }
+
+  .cellar-card::after {
+    background-size: 138% 145%;
+  }
+
+  .board-frame,
+  .score-burst-layer {
+    width: min(92vw, 340px) !important;
+  }
+
+  .practice-speed-control {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    width: min(100%, 320px);
+  }
+
+  .practice-speed-control span {
+    text-align: center;
+  }
+
+  .practice-speed-control select {
+    width: 100%;
+    max-width: none;
+  }
+
+  .match-actions {
+    grid-template-columns: 1fr;
+    width: min(100%, 320px);
+  }
+
+  .match-actions button {
+    width: 100%;
+  }
+
+  .queue-preview-card canvas {
+    max-width: min(100%, 124px);
+  }
+
+  .hold-preview-card canvas {
+    max-width: min(100%, 124px);
+  }
+}
+
+@media (max-width: 420px) {
+  .brix-app {
+    width: calc(100% - 8px);
+  }
+
+  .brix-layout {
+    width: min(100%, 360px);
+  }
+
+  .cellar-card {
+    --panel-frame-pad-y: 12px;
+    --panel-frame-pad-x: 12px;
+    --panel-frame-inset: 9px;
+  }
+
+  .cellar-card::after {
+    background-size: 134% 142%;
+  }
+
+  .stat-row strong {
+    font-size: clamp(0.72rem, 2.6vw, 0.9rem);
+  }
+}
+
+/* Locked final responsive system: desktop 3-column, smaller screens board-wide + stacked utility rail. */
+.brix-layout {
+  display: grid !important;
+  grid-template-areas: "left board right" !important;
+  align-items: start !important;
+  justify-content: center !important;
+}
+
+.left-rail {
+  grid-area: left;
+}
+
+.board-column {
+  grid-area: board;
+  width: 100%;
+  justify-self: center;
+  align-self: start;
+}
+
+.right-rail {
+  grid-area: right;
+}
+
+.board-frame,
+.score-burst-layer {
+  width: 100% !important;
+}
+
+.cellar-card h2,
+.cellar-card p,
+.cellar-card strong,
+.field-label,
+.stat-row span,
+.stat-row strong,
+.preview-card strong,
+.social-launch-button,
+.mini-button,
+.practice-speed-control,
+.match-actions button {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.match-card .stat-row,
+.compact-card .stat-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+}
+
+.match-card .stat-row strong,
+.compact-card .stat-row strong {
+  text-align: right;
+}
+
+@media (min-width: 961px) {
+  .brix-app {
+    width: min(1220px, calc(100% - (var(--app-gutter) * 2)));
+    padding: clamp(8px, 1.6vw, 18px) 0 20px;
+  }
+
+  .brix-layout {
+    grid-template-columns: minmax(210px, 250px) minmax(290px, 380px) minmax(210px, 250px) !important;
+    gap: clamp(10px, 1.4vw, 18px) !important;
+  }
+
+  .side-rail {
+    display: flex !important;
+    flex-direction: column;
+    gap: clamp(10px, 1.2vw, 16px);
+    padding-top: clamp(24px, 4vh, 52px);
+  }
+
+  .board-column {
+    max-width: 380px;
+  }
+
+  .practice-speed-control {
+    width: min(100%, 320px);
+  }
+
+  .match-actions {
+    width: min(100%, 380px);
+  }
+}
+
+@media (max-width: 960px) {
+  .brix-app {
+    width: min(100%, 980px);
+    padding: 6px 0 12px;
+  }
+
+  .brix-layout {
+    grid-template-columns: minmax(118px, 24vw) minmax(220px, 46vw) minmax(118px, 24vw) !important;
+    grid-template-areas: "left board right" !important;
+    gap: clamp(4px, 0.7vw, 8px) !important;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .side-rail {
+    display: flex !important;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 0;
+    width: 100%;
+  }
+
+  .board-column {
+    max-width: 340px;
+    width: 100%;
+  }
+
+  .cellar-card {
+    isolation: auto;
+    border: 3px solid var(--pixel-outline) !important;
+    border-radius: 12px !important;
+    padding: 8px !important;
+    box-shadow:
+      0 4px 0 rgba(73, 39, 24, 0.24),
+      0 10px 22px rgba(177, 138, 92, 0.12),
+      inset 0 0 0 1px rgba(255, 251, 235, 0.72) !important;
+  }
+
+  .cellar-card::before {
+    inset: 0 !important;
+    border-radius: 10px;
+  }
+
+  .cellar-card::after {
+    display: none !important;
+  }
+
+  .eyebrow {
+    margin-bottom: 4px !important;
+  }
+
+  .card-heading-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 3px;
+  }
+
+  .compact-card input {
+    margin-bottom: 6px;
+  }
+
+  .preview-card canvas,
+  .short-preview canvas {
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  .queue-preview-card canvas {
+    max-width: clamp(48px, 8vw, 80px);
+  }
+
+  .hold-preview-card canvas {
+    max-width: clamp(48px, 8vw, 80px);
+  }
+
+  .social-launch-button,
+  .mini-button {
+    width: 100%;
+  }
+
+  .practice-speed-control {
+    width: 100%;
+    max-width: 100%;
+    gap: 3px;
+    margin-top: 6px;
+    font-size: clamp(0.52rem, 1vw, 0.72rem);
+  }
+
+  .match-actions {
+    width: 100%;
+    max-width: 100%;
+    gap: 4px;
+    margin-top: 6px;
+  }
+
+  .match-actions button {
+    padding: 5px 2px;
+    font-size: clamp(0.52rem, 1vw, 0.72rem);
+  }
+}
+
+@media (max-width: 720px) {
+  .brix-app {
+    width: 100vw;
+    max-width: 100vw;
+    padding: 4px 0 10px;
+    margin: 0;
+  }
+
+  .brix-topbar {
+    gap: 4px;
+    margin-bottom: 4px;
+  }
+
+  .brand-lockup {
+    width: 116px;
+    min-width: 116px;
+    height: 42px;
+  }
+
+  .topbar-actions {
+    gap: 4px;
+  }
+
+  .status-pill {
+    min-width: 72px;
+    max-width: 90px;
+    padding: 4px 6px;
+    font-size: 0.64rem;
+  }
+
+  .ghost-button {
+    min-width: 50px;
+    padding: 4px 6px;
+    font-size: 0.64rem;
+  }
+
+  .brix-layout {
+    grid-template-columns: minmax(0, 20.5vw) minmax(0, 54vw) minmax(0, 20.5vw) !important;
+    grid-template-areas: "left board right" !important;
+    gap: 1px !important;
+    width: 100vw;
+    max-width: 100vw;
+    margin-top: 6px;
+  }
+
+  .side-rail {
+    gap: 3px;
+    padding-top: 0;
+  }
+
+  .board-column {
+    max-width: none;
+  }
+
+  .board-frame,
+  .score-burst-layer {
+    width: min(100%, 54vw, 194px) !important;
+  }
+
+  .cellar-card {
+    padding: 4px !important;
+    border-width: 2px !important;
+    border-radius: 8px !important;
+  }
+
+  .cellar-card h2 {
+    font-size: 0.62rem;
+  }
+
+  .cellar-card p,
+  .stat-row {
+    font-size: 0.48rem;
+    line-height: 1.15;
+  }
+
+  .eyebrow {
+    margin-bottom: 2px !important;
+    font-size: 0.44rem !important;
+  }
+
+  .field-label {
+    margin-bottom: 2px;
+    font-size: 0.44rem;
+  }
+
+  .match-card .stat-row,
+  .compact-card .stat-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px 6px;
+  }
+
+  .match-card .stat-row strong,
+  .compact-card .stat-row strong {
+    text-align: right;
+    font-size: 0.6rem;
+    line-height: 1.05;
+  }
+
+  .card-heading-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+  }
+
+  .social-launch-button,
+  .mini-button {
+    width: 100%;
+    padding: 2px 4px;
+    font-size: 0.44rem;
+  }
+
+  .compact-card input {
+    padding: 4px 5px;
+    font-size: 0.56rem;
+    margin-bottom: 4px;
+  }
+
+  .preview-card {
+    padding: 4px !important;
+  }
+
+  .queue-preview-card canvas {
+    max-width: 34px;
+    aspect-ratio: 1 / 1.7;
+  }
+
+  .hold-preview-card canvas {
+    max-width: 34px;
+    aspect-ratio: 1 / 0.74;
+  }
+
+  .preview-card strong {
+    font-size: 0.44rem;
+    line-height: 1.05;
+  }
+
+  .practice-speed-control {
+    width: min(100%, 54vw, 194px);
+    gap: 2px;
+    margin-top: 4px;
+    font-size: 0.44rem;
+  }
+
+  .practice-speed-control span {
+    display: none;
+  }
+
+  .practice-speed-control select {
+    min-width: 0;
+    max-width: 100%;
+    padding: 4px 16px 4px 5px;
+    font-size: 0.54rem;
+  }
+
+  .match-actions {
+    width: min(100%, 54vw, 194px);
+    gap: 2px;
+    margin-top: 4px;
+  }
+
+  .match-actions button {
+    padding: 4px 1px;
+    font-size: 0.44rem;
+  }
+}
+
+@media (max-width: 425px) {
+  .brix-layout {
+    grid-template-columns: minmax(0, 74vw) minmax(0, 22vw) !important;
+    grid-template-areas:
+      "board right"
+      "board left" !important;
+  }
+
+  .right-rail {
+    --hold-card-min-height: 88px;
+  }
+
+  .board-frame,
+  .score-burst-layer,
+  .practice-speed-control,
+  .match-actions {
+    width: min(100%, 74vw, 238px) !important;
+  }
+
+  .right-rail {
+    gap: 4px;
+  }
+
+  .left-rail {
+    gap: 4px;
+    padding-top: 0;
+  }
+
+  .hold-preview-card {
+    min-height: 96px;
+  }
+
+  .queue-preview-card {
+    min-height: calc(var(--hold-card-min-height) * 3);
+  }
+
+  .cellar-card {
+    padding: 3px !important;
+  }
+
+  .cellar-card p,
+  .stat-row {
+    font-size: 0.44rem;
+  }
+
+  .match-card .stat-row strong,
+  .compact-card .stat-row strong {
+    font-size: 0.54rem;
+    text-align: left;
+  }
+
+  .match-card .stat-row,
+  .compact-card .stat-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1px;
+  }
+
+  .queue-preview-card canvas {
+    max-width: 30px;
+    aspect-ratio: 1 / 2.25;
+  }
+
+  .hold-preview-card canvas {
+    max-width: min(100%, 46px);
+    aspect-ratio: 1 / 0.72;
+    margin-bottom: 4px;
+  }
+}
+
+/* Final frame override for smaller layouts: keep vineyard border art below desktop. */
+@media (max-width: 960px) {
+  .cellar-card {
+    --panel-frame-pad-y: clamp(12px, 1.7vw, 18px);
+    --panel-frame-pad-x: clamp(12px, 1.9vw, 18px);
+    --panel-frame-inset: clamp(8px, 1.15vw, 12px);
+    position: relative;
+    overflow: visible;
+    isolation: isolate;
+    border: 0 !important;
+    border-radius: 0 !important;
+    padding: var(--panel-frame-pad-y) var(--panel-frame-pad-x) !important;
+    background:
+      linear-gradient(180deg, rgba(255, 251, 238, 0.92), rgba(255, 242, 213, 0.98)),
+      var(--panel-fill);
+    background-clip: padding-box;
+    box-shadow: none !important;
+  }
+
+  .cellar-card::before {
+    inset: var(--panel-frame-inset) !important;
+    border-radius: 10px;
+  }
+
+  .cellar-card::after {
+    display: block !important;
+    inset: -4.2% -4.2% -4.4%;
+    z-index: 1;
+    background: url("./assets/vineyard/border.png") center / 136% 144% no-repeat;
+  }
+
+  .cellar-card > * {
+    position: relative;
+    z-index: 0;
+  }
+
+  .preview-card {
+    --panel-frame-pad-y: clamp(10px, 1.45vw, 14px);
+    --panel-frame-pad-x: clamp(10px, 1.45vw, 14px);
+    --panel-frame-inset: clamp(8px, 1.05vw, 11px);
+  }
+}
+
+@media (max-width: 720px) {
+  .cellar-card {
+    --panel-frame-pad-y: 9px;
+    --panel-frame-pad-x: 9px;
+    --panel-frame-inset: 7px;
+  }
+
+  .cellar-card::after {
+    inset: -4.5% -4.5% -4.8%;
+    background-size: 132% 139%;
+  }
+
+  .preview-card {
+    --panel-frame-pad-y: 8px;
+    --panel-frame-pad-x: 8px;
+    --panel-frame-inset: 6px;
+  }
+}
+
+@media (max-width: 425px) {
+  .cellar-card {
+    --panel-frame-pad-y: 7px;
+    --panel-frame-pad-x: 7px;
+    --panel-frame-inset: 5px;
+    padding: var(--panel-frame-pad-y) var(--panel-frame-pad-x) !important;
+  }
+
+  .cellar-card::before {
+    border-radius: 8px;
+  }
+
+  .cellar-card::after {
+    inset: -4.8% -4.8% -5.1%;
+    background-size: 126% 132%;
+  }
+
+  .preview-card {
+    --panel-frame-pad-y: 6px;
+    --panel-frame-pad-x: 6px;
+    --panel-frame-inset: 5px;
+  }
 }

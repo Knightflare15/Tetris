@@ -201,6 +201,8 @@ function BoardCanvas({
   onInput: (action: InputAction) => void;
 }): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const snapshotRef = useRef<RoomSnapshot | null>(snapshot);
+  const localSlotRef = useRef<"A" | "B" | null>(localSlot);
   const animationFrameRef = useRef<number | null>(null);
   const animationActiveRef = useRef(false);
   const lastLockEffectIdRef = useRef<number | null>(null);
@@ -231,6 +233,46 @@ function BoardCanvas({
   const HOLD_SWIPE_DISTANCE = 52;
   const HARD_SWIPE_MAX_DURATION_MS = 280;
   const SWIPE_HORIZONTAL_TOLERANCE = 30;
+
+  useEffect(() => {
+    snapshotRef.current = snapshot;
+    localSlotRef.current = localSlot;
+  }, [localSlot, snapshot]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return;
+    }
+
+    const syncCanvasResolution = () => {
+      const bounds = canvas.getBoundingClientRect();
+      if (bounds.width === 0 || bounds.height === 0) {
+        return;
+      }
+
+      const devicePixelRatio = window.devicePixelRatio || 1;
+      const nextWidth = Math.round(bounds.width * devicePixelRatio);
+      const nextHeight = Math.round(bounds.height * devicePixelRatio);
+      if (canvas.width === nextWidth && canvas.height === nextHeight) {
+        return;
+      }
+
+      canvas.width = nextWidth;
+      canvas.height = nextHeight;
+      renderBoard(canvas, snapshotRef.current, localSlotRef.current);
+    };
+
+    syncCanvasResolution();
+    const resizeObserver = new ResizeObserver(syncCanvasResolution);
+    resizeObserver.observe(canvas);
+    window.addEventListener("resize", syncCanvasResolution);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", syncCanvasResolution);
+    };
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -500,12 +542,15 @@ function BoardCanvas({
 
 function QueueCard({ queue }: { queue: TetrominoType[] }): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const redrawRef = useRef(() => {});
 
-  useEffect(() => {
+  redrawRef.current = () => {
     if (canvasRef.current) {
       renderPreview(canvasRef.current, queue);
     }
-  }, [queue]);
+  };
+
+  useHiDpiCanvas(canvasRef, redrawRef, [queue]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -513,13 +558,13 @@ function QueueCard({ queue }: { queue: TetrominoType[] }): ReactElement {
       return;
     }
 
-    const redraw = () => renderPreview(canvas, queue);
+    const redraw = () => redrawRef.current();
     window.addEventListener(QUATTRO_SPRITE_LOAD_EVENT, redraw);
     return () => window.removeEventListener(QUATTRO_SPRITE_LOAD_EVENT, redraw);
   }, [queue]);
 
   return (
-    <section className="cellar-card preview-card">
+    <section className="cellar-card preview-card queue-preview-card">
       <p className="eyebrow">Next cats</p>
       <canvas ref={canvasRef} width={150} height={250} />
     </section>
@@ -528,13 +573,16 @@ function QueueCard({ queue }: { queue: TetrominoType[] }): ReactElement {
 
 function PreviewCard({ title, type }: { title: string; type: TetrominoType | null }): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const redrawRef = useRef(() => {});
   const family = type ? familyForType(type) : null;
 
-  useEffect(() => {
+  redrawRef.current = () => {
     if (canvasRef.current) {
       renderHold(canvasRef.current, type);
     }
-  }, [type]);
+  };
+
+  useHiDpiCanvas(canvasRef, redrawRef, [type]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -542,18 +590,62 @@ function PreviewCard({ title, type }: { title: string; type: TetrominoType | nul
       return;
     }
 
-    const redraw = () => renderHold(canvas, type);
+    const redraw = () => redrawRef.current();
     window.addEventListener(QUATTRO_SPRITE_LOAD_EVENT, redraw);
     return () => window.removeEventListener(QUATTRO_SPRITE_LOAD_EVENT, redraw);
   }, [type]);
 
   return (
-    <section className="cellar-card preview-card short-preview">
+    <section className="cellar-card preview-card short-preview hold-preview-card">
       <p className="eyebrow">{title}</p>
       <canvas ref={canvasRef} width={150} height={90} />
       <strong>{family?.name ?? "Empty"}</strong>
     </section>
   );
+}
+
+function useHiDpiCanvas(
+  canvasRef: { current: HTMLCanvasElement | null },
+  redrawRef: { current: () => void },
+  dependencies: ReadonlyArray<unknown>,
+): void {
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return;
+    }
+
+    const syncCanvasResolution = () => {
+      const bounds = canvas.getBoundingClientRect();
+      if (bounds.width === 0 || bounds.height === 0) {
+        return;
+      }
+
+      const devicePixelRatio = window.devicePixelRatio || 1;
+      const nextWidth = Math.round(bounds.width * devicePixelRatio);
+      const nextHeight = Math.round(bounds.height * devicePixelRatio);
+      if (canvas.width !== nextWidth || canvas.height !== nextHeight) {
+        canvas.width = nextWidth;
+        canvas.height = nextHeight;
+      }
+
+      redrawRef.current();
+    };
+
+    syncCanvasResolution();
+    const resizeObserver = new ResizeObserver(syncCanvasResolution);
+    resizeObserver.observe(canvas);
+    window.addEventListener("resize", syncCanvasResolution);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", syncCanvasResolution);
+    };
+  }, [canvasRef, redrawRef]);
+
+  useEffect(() => {
+    redrawRef.current();
+  }, dependencies);
 }
 
 function FriendsModal({

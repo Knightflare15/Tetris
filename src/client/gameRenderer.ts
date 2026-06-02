@@ -27,7 +27,6 @@ export { QUATTRO_SPRITE_LOAD_EVENT };
 export const BOARD_BLOCK_SIZE = 30;
 export const BOARD_CANVAS_WIDTH = COLS * BOARD_BLOCK_SIZE;
 export const BOARD_CANVAS_HEIGHT = ROWS * BOARD_BLOCK_SIZE;
-const PREVIEW_BLOCK_SIZE = 18;
 
 interface RenderCell extends ShapeCell {
   value: CellValue;
@@ -45,11 +44,18 @@ export function renderBoard(
   clearEffectProgress = 1,
 ): void {
   const context = getCanvasContext(canvas);
+  const scaleX = canvas.width / BOARD_CANVAS_WIDTH;
+  const scaleY = canvas.height / BOARD_CANVAS_HEIGHT;
+
+  context.setTransform(1, 0, 0, 1, 0, 0);
   context.clearRect(0, 0, canvas.width, canvas.height);
+  context.save();
+  context.setTransform(scaleX, 0, 0, scaleY, 0, 0);
   const boardSize = snapshot ? boardSizeFor(snapshot.board) : { rows: ROWS, cols: COLS };
-  drawCellarGrid(context, canvas.width, canvas.height, boardSize.cols, boardSize.rows);
+  drawCellarGrid(context, BOARD_CANVAS_WIDTH, BOARD_CANVAS_HEIGHT, boardSize.cols, boardSize.rows);
 
   if (!snapshot) {
+    context.restore();
     return;
   }
 
@@ -94,6 +100,8 @@ export function renderBoard(
   if (snapshot.clearEffect && clearEffectProgress < 1) {
     drawLineClearEffect(context, snapshot.clearEffect.rows, boardSize.cols, clearEffectProgress);
   }
+
+  context.restore();
 }
 
 export function renderPreview(
@@ -101,17 +109,36 @@ export function renderPreview(
   types: TetrominoType[],
 ): void {
   const context = getCanvasContext(canvas);
+  context.setTransform(1, 0, 0, 1, 0, 0);
   context.clearRect(0, 0, canvas.width, canvas.height);
-  types.slice(0, 3).forEach((type, index) => {
-    drawPreviewPiece(context, type, 45, 8 + index * 100);
+  const queue = types.slice(0, 3);
+  if (queue.length === 0) {
+    return;
+  }
+
+  const verticalPadding = Math.max(6, Math.floor(canvas.height * 0.04));
+  const slotGap = Math.max(4, Math.floor(canvas.height * 0.035));
+  const availableHeight = canvas.height - verticalPadding * 2 - slotGap * (queue.length - 1);
+  const slotHeight = availableHeight / queue.length;
+
+  queue.forEach((type, index) => {
+    drawPreviewPiece(
+      context,
+      type,
+      0,
+      verticalPadding + index * (slotHeight + slotGap),
+      canvas.width,
+      slotHeight,
+    );
   });
 }
 
 export function renderHold(canvas: HTMLCanvasElement, type: TetrominoType | null): void {
   const context = getCanvasContext(canvas);
+  context.setTransform(1, 0, 0, 1, 0, 0);
   context.clearRect(0, 0, canvas.width, canvas.height);
   if (type) {
-    drawPreviewPiece(context, type, 34, 16);
+    drawPreviewPiece(context, type, 0, 0, canvas.width, canvas.height);
   }
 }
 
@@ -419,16 +446,41 @@ function drawLockEffect(
 function drawPreviewPiece(
   context: CanvasRenderingContext2D,
   type: TetrominoType,
-  originX: number,
-  originY: number,
+  left: number,
+  top: number,
+  width: number,
+  height: number,
 ): void {
   const matrix = trimMatrix(matrixFor(type));
   const pieceWidth = matrix[0]?.length ?? 0;
-  const xOffset = Math.floor((4 - pieceWidth) * PREVIEW_BLOCK_SIZE * 0.5);
-  const family = familyForType(type);
-  const spriteCells = cellsForPreviewMatrix(matrix, originX + xOffset, originY);
+  const pieceHeight = matrix.length;
+  if (pieceWidth === 0 || pieceHeight === 0) {
+    return;
+  }
 
-  if (drawTetrominoSprite(context, spriteCells, type, 1, PREVIEW_BLOCK_SIZE, 1)) {
+  const padding = Math.max(4, Math.floor(Math.min(width, height) * 0.08));
+  const blockSize = Math.max(
+    1,
+    Math.floor(
+      Math.min(
+        (width - padding * 2) / pieceWidth,
+        (height - padding * 2) / pieceHeight,
+      ),
+    ),
+  );
+  const piecePixelWidth = pieceWidth * blockSize;
+  const piecePixelHeight = pieceHeight * blockSize;
+  const centeredOriginX = Math.floor(left + (width - piecePixelWidth) / 2);
+  const centeredOriginY = Math.floor(top + (height - piecePixelHeight) / 2);
+  // Preview sprite lookup expects whole-cell coordinates, so keep the preview
+  // origin aligned to the current block grid before resolving sprite variants.
+  const originX = Math.round(centeredOriginX / blockSize) * blockSize;
+  const originY = Math.round(centeredOriginY / blockSize) * blockSize;
+  const inset = Math.max(1, Math.round(blockSize * 0.08));
+  const family = familyForType(type);
+  const spriteCells = cellsForPreviewMatrix(matrix, originX, originY, blockSize);
+
+  if (drawTetrominoSprite(context, spriteCells, type, 1, blockSize, inset)) {
     return;
   }
 
@@ -437,14 +489,14 @@ function drawPreviewPiece(
       if (value === 0) {
         return;
       }
-      const left = originX + xOffset + x * PREVIEW_BLOCK_SIZE;
-      const top = originY + y * PREVIEW_BLOCK_SIZE;
-      const size = PREVIEW_BLOCK_SIZE - 2;
-      const gradient = context.createLinearGradient(left, top, left, top + size);
+      const cellLeft = originX + x * blockSize + inset;
+      const cellTop = originY + y * blockSize + inset;
+      const size = Math.max(1, blockSize - inset * 2);
+      const gradient = context.createLinearGradient(cellLeft, cellTop, cellLeft, cellTop + size);
       gradient.addColorStop(0, lighten(family.color));
       gradient.addColorStop(1, family.shadow);
       context.fillStyle = gradient;
-      roundedRect(context, left, top, size, size, 4);
+      roundedRect(context, cellLeft, cellTop, size, size, Math.max(2, Math.round(blockSize * 0.18)));
       context.fill();
       context.strokeStyle = "rgba(76, 35, 25, 0.38)";
       context.stroke();
@@ -452,14 +504,14 @@ function drawPreviewPiece(
   });
 }
 
-function cellsForPreviewMatrix(matrix: Matrix, originX: number, originY: number): RenderCell[] {
+function cellsForPreviewMatrix(matrix: Matrix, originX: number, originY: number, blockSize: number): RenderCell[] {
   const cells: RenderCell[] = [];
   matrix.forEach((row, y) => {
     row.forEach((value, x) => {
       if (value !== 0) {
         cells.push({
-          x: originX / PREVIEW_BLOCK_SIZE + x,
-          y: originY / PREVIEW_BLOCK_SIZE + y,
+          x: originX / blockSize + x,
+          y: originY / blockSize + y,
           value,
         });
       }
