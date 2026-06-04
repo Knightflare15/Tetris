@@ -201,6 +201,7 @@ function BoardCanvas({
   onInput: (action: InputAction) => void;
 }): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const playfieldRef = useRef<HTMLDivElement | null>(null);
   const snapshotRef = useRef<RoomSnapshot | null>(snapshot);
   const localSlotRef = useRef<"A" | "B" | null>(localSlot);
   const animationFrameRef = useRef<number | null>(null);
@@ -241,12 +242,13 @@ function BoardCanvas({
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) {
+    const playfield = playfieldRef.current;
+    if (!canvas || !playfield) {
       return;
     }
 
     const syncCanvasResolution = () => {
-      const bounds = canvas.getBoundingClientRect();
+      const bounds = playfield.getBoundingClientRect();
       if (bounds.width === 0 || bounds.height === 0) {
         return;
       }
@@ -265,7 +267,7 @@ function BoardCanvas({
 
     syncCanvasResolution();
     const resizeObserver = new ResizeObserver(syncCanvasResolution);
-    resizeObserver.observe(canvas);
+    resizeObserver.observe(playfield);
     window.addEventListener("resize", syncCanvasResolution);
 
     return () => {
@@ -523,12 +525,11 @@ function BoardCanvas({
       className="board-frame"
       aria-label="Quattro board"
     >
-      <div className="board-playfield">
+      <div className="board-playfield" ref={playfieldRef}>
         <canvas
           ref={canvasRef}
           width={BOARD_CANVAS_WIDTH}
           height={BOARD_CANVAS_HEIGHT}
-          style={{ aspectRatio: `${BOARD_CANVAS_WIDTH} / ${BOARD_CANVAS_HEIGHT}` }}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}

@@ -565,7 +565,7 @@ canvas {
 
 .board-playfield {
   position: absolute;
-  inset: 8.6% 6% 1.8% 7%;
+  inset: 8.6% 7.1% 9.3% 7%;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -575,8 +575,8 @@ canvas {
 }
 
 .board-frame canvas {
-  width: auto;
-  max-width: 100%;
+  display: block;
+  width: 100%;
   height: 100%;
   border-radius: 8px;
   background: #261126;
@@ -1270,256 +1270,6 @@ canvas {
     --control-font: clamp(0.62rem, 1.5vw, 0.86rem);
     --body-copy: clamp(0.62rem, 1.25vw, 0.78rem);
     --small-copy: clamp(0.54rem, 1.05vw, 0.66rem);
-  }
-}
-
-@media (max-width: 640px) {
-  :root {
-    --app-gutter: 6px;
-    --layout-gap: 4px;
-    --panel-pad: 7px;
-    --button-y: 7px;
-    --button-x: 6px;
-    --control-font: clamp(0.54rem, 2.55vw, 0.74rem);
-    --body-copy: clamp(0.55rem, 2.25vw, 0.7rem);
-    --small-copy: clamp(0.5rem, 2vw, 0.6rem);
-  }
-
-  .brix-app {
-    padding-top: 7px;
-  }
-
-  .brix-topbar {
-    gap: 8px;
-    margin-bottom: 4px;
-  }
-
-  .brand-lockup {
-    width: clamp(120px, 31vw, 180px);
-    height: clamp(46px, 12vw, 72px);
-    min-width: clamp(120px, 31vw, 180px);
-    padding-left: 0;
-    text-align: left;
-  }
-
-  .brand-lockup::before {
-    width: 100%;
-    height: 100%;
-  }
-
-  .brand-lockup h1 {
-    font-size: clamp(1.45rem, 7vw, 2rem);
-  }
-
-  .brand-vine {
-    font-size: 0.58rem;
-  }
-
-  .topbar-actions {
-    gap: 6px;
-  }
-
-  .status-pill {
-    min-width: 92px;
-    max-width: 138px;
-    padding: 6px 8px;
-    font-size: 0.72rem;
-  }
-
-  .ghost-button {
-    min-width: 58px;
-  }
-
-  .brix-layout {
-    grid-template-columns:
-      minmax(54px, 0.72fr)
-      minmax(126px, 1.45fr)
-      minmax(54px, 0.72fr);
-  }
-
-  .side-rail {
-    gap: 5px;
-    padding-top: 9px;
-  }
-
-  .board-frame {
-    width: min(100%, clamp(126px, 43vw, 220px));
-  }
-
-  .score-burst-layer {
-    width: min(100%, clamp(126px, 43vw, 220px));
-  }
-
-  .score-burst {
-    min-width: 56px;
-    max-width: 72px;
-    padding: 5px 6px 6px;
-  }
-
-  .score-burst-left {
-    right: calc(100% + 4px);
-  }
-
-  .score-burst-right {
-    left: calc(100% + 4px);
-  }
-
-  .score-burst strong {
-    font-size: 0.72rem;
-  }
-
-  .score-burst span {
-    font-size: 0.46rem;
-  }
-
-  .board-frame canvas {
-    width: 100%;
-    height: auto;
-    max-height: 52dvh;
-  }
-
-  .match-actions {
-    gap: 7px;
-    margin-top: 8px;
-  }
-
-  .match-actions button {
-    min-width: 0;
-    padding: 7px 5px;
-  }
-
-  .practice-speed-control {
-    flex-wrap: nowrap;
-    width: 100%;
-    gap: 4px;
-  }
-
-  .practice-speed-control select {
-    min-width: 74px;
-    max-width: 104px;
-  }
-
-  .welcome-card p {
-    display: none;
-  }
-
-  .friend-form {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .friend-form .mini-button {
-    width: 50%;
-  }
-
-  .request-copy strong,
-  .request-copy span,
-  .friend-copy strong,
-  .friend-copy span,
-  .leader-name,
-  .leader-row span {
-    overflow: visible;
-    text-overflow: clip;
-    white-space: normal;
-    overflow-wrap: anywhere;
-  }
-
-  .request-row,
-  .friend-row {
-    align-items: start;
-  }
-
-  .friend-row {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
-  .friend-row button {
-    grid-column: 1 / -1;
-    width: 100%;
-  }
-
-  .cellar-card h2 {
-    font-size: clamp(0.66rem, 2.7vw, 0.9rem);
-  }
-
-  .eyebrow {
-    margin-bottom: 5px !important;
-    font-size: 0.62rem !important;
-  }
-
-  .stat-row {
-    margin: 3px 0 !important;
-  }
-
-  .stat-row strong {
-    font-size: clamp(0.62rem, 2.7vw, 0.82rem);
-  }
-
-  .button-stack {
-    gap: 6px;
-  }
-
-  .button-stack button,
-  .cellar-card button {
-    min-width: 0;
-  }
-
-  .wine-progress {
-    margin-top: 5px;
-  }
-
-  .glass-bowl {
-    width: 42px;
-    height: 42px;
-    border-radius: 999px;
-  }
-
-  .glass-stem {
-    height: 10px;
-  }
-
-  .glass-base {
-    width: 34px;
-  }
-
-  .wine-progress > span {
-    display: none;
-  }
-
-  .preview-card canvas {
-    width: 100%;
-    height: clamp(70px, 20vw, 110px);
-  }
-
-  .short-preview canvas {
-    height: clamp(40px, 12vw, 58px);
-  }
-
-  .fruit-strip {
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 4px;
-    padding: 7px;
-  }
-
-  .fruit-mark {
-    width: 18px;
-    height: 18px;
-    margin-bottom: 4px;
-  }
-
-  .fruit-family h3 {
-    font-size: 0.52rem;
-  }
-
-  .fruit-family p {
-    display: none;
-  }
-
-  .auth-modal {
-    align-self: end;
-    width: 100%;
-    max-height: calc(100dvh - 24px);
-    overflow: auto;
-    padding: 18px;
   }
 }
 
@@ -2224,53 +1974,6 @@ canvas {
   }
 }
 
-@media (min-width: 521px) and (max-width: 640px) {
-  .brix-layout {
-    grid-template-columns:
-      minmax(0, 22vw)
-      minmax(0, 50vw)
-      minmax(0, 22vw);
-    justify-content: center;
-    gap: 4px;
-  }
-
-  .side-rail {
-    gap: 4px;
-    padding-top: 4px;
-  }
-
-  .cellar-card {
-    padding: 5px;
-    border-radius: 6px;
-  }
-
-  .cellar-card p,
-  .stat-row {
-    font-size: 0.56rem;
-  }
-
-  .stat-row strong {
-    font-size: 0.74rem;
-  }
-
-  .board-column {
-    justify-self: center;
-  }
-
-  .board-frame,
-  .score-burst-layer {
-    width: min(100%, 50vw, 220px) !important;
-  }
-
-  .preview-card:not(.short-preview) {
-    min-height: 102px;
-  }
-
-  .short-preview {
-    min-height: 58px;
-  }
-}
-
 .mobile-controls,
 .optional-controls {
   display: none !important;
@@ -2542,105 +2245,6 @@ canvas {
   }
 }
 
-@media (max-width: 720px) {
-  .brix-app {
-    width: min(100%, 460px);
-    padding-bottom: 20px;
-  }
-
-  .brix-topbar {
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 8px;
-  }
-
-  .brand-lockup {
-    width: 140px;
-    min-width: 140px;
-    height: 52px;
-  }
-
-  .topbar-actions {
-    margin-left: auto;
-    gap: 6px;
-  }
-
-  .status-pill {
-    min-width: 96px;
-    max-width: none;
-  }
-
-  .brix-layout {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      "board"
-      "left"
-      "right";
-    width: min(100%, 390px);
-    margin: 0 auto;
-    gap: 12px;
-  }
-
-  .board-column,
-  .left-rail,
-  .right-rail {
-    width: 100%;
-  }
-
-  .side-rail {
-    display: flex !important;
-    gap: 12px;
-  }
-
-  .cellar-card {
-    --panel-frame-pad-y: 14px;
-    --panel-frame-pad-x: 14px;
-    --panel-frame-inset: 10px;
-  }
-
-  .cellar-card::after {
-    background-size: 138% 145%;
-  }
-
-  .board-frame,
-  .score-burst-layer {
-    width: min(92vw, 340px) !important;
-  }
-
-  .practice-speed-control {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 6px;
-    width: min(100%, 320px);
-  }
-
-  .practice-speed-control span {
-    text-align: center;
-  }
-
-  .practice-speed-control select {
-    width: 100%;
-    max-width: none;
-  }
-
-  .match-actions {
-    grid-template-columns: 1fr;
-    width: min(100%, 320px);
-  }
-
-  .match-actions button {
-    width: 100%;
-  }
-
-  .queue-preview-card canvas {
-    max-width: min(100%, 124px);
-  }
-
-  .hold-preview-card canvas {
-    max-width: min(100%, 124px);
-  }
-}
-
 @media (max-width: 420px) {
   .brix-app {
     width: calc(100% - 8px);
@@ -2853,172 +2457,6 @@ canvas {
   }
 }
 
-@media (max-width: 720px) {
-  .brix-app {
-    width: 100vw;
-    max-width: 100vw;
-    padding: 4px 0 10px;
-    margin: 0;
-  }
-
-  .brix-topbar {
-    gap: 4px;
-    margin-bottom: 4px;
-  }
-
-  .brand-lockup {
-    width: 116px;
-    min-width: 116px;
-    height: 42px;
-  }
-
-  .topbar-actions {
-    gap: 4px;
-  }
-
-  .status-pill {
-    min-width: 72px;
-    max-width: 90px;
-    padding: 4px 6px;
-    font-size: 0.64rem;
-  }
-
-  .ghost-button {
-    min-width: 50px;
-    padding: 4px 6px;
-    font-size: 0.64rem;
-  }
-
-  .brix-layout {
-    grid-template-columns: minmax(0, 20.5vw) minmax(0, 54vw) minmax(0, 20.5vw) !important;
-    grid-template-areas: "left board right" !important;
-    gap: 1px !important;
-    width: 100vw;
-    max-width: 100vw;
-    margin-top: 6px;
-  }
-
-  .side-rail {
-    gap: 3px;
-    padding-top: 0;
-  }
-
-  .board-column {
-    max-width: none;
-  }
-
-  .board-frame,
-  .score-burst-layer {
-    width: min(100%, 54vw, 194px) !important;
-  }
-
-  .cellar-card {
-    padding: 4px !important;
-    border-width: 2px !important;
-    border-radius: 8px !important;
-  }
-
-  .cellar-card h2 {
-    font-size: 0.62rem;
-  }
-
-  .cellar-card p,
-  .stat-row {
-    font-size: 0.48rem;
-    line-height: 1.15;
-  }
-
-  .eyebrow {
-    margin-bottom: 2px !important;
-    font-size: 0.44rem !important;
-  }
-
-  .field-label {
-    margin-bottom: 2px;
-    font-size: 0.44rem;
-  }
-
-  .match-card .stat-row,
-  .compact-card .stat-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 2px 6px;
-  }
-
-  .match-card .stat-row strong,
-  .compact-card .stat-row strong {
-    text-align: right;
-    font-size: 0.6rem;
-    line-height: 1.05;
-  }
-
-  .card-heading-row {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 2px;
-  }
-
-  .social-launch-button,
-  .mini-button {
-    width: 100%;
-    padding: 2px 4px;
-    font-size: 0.44rem;
-  }
-
-  .compact-card input {
-    padding: 4px 5px;
-    font-size: 0.56rem;
-    margin-bottom: 4px;
-  }
-
-  .preview-card {
-    padding: 4px !important;
-  }
-
-  .queue-preview-card canvas {
-    max-width: 34px;
-    aspect-ratio: 1 / 1.7;
-  }
-
-  .hold-preview-card canvas {
-    max-width: 34px;
-    aspect-ratio: 1 / 0.74;
-  }
-
-  .preview-card strong {
-    font-size: 0.44rem;
-    line-height: 1.05;
-  }
-
-  .practice-speed-control {
-    width: min(100%, 54vw, 194px);
-    gap: 2px;
-    margin-top: 4px;
-    font-size: 0.44rem;
-  }
-
-  .practice-speed-control span {
-    display: none;
-  }
-
-  .practice-speed-control select {
-    min-width: 0;
-    max-width: 100%;
-    padding: 4px 16px 4px 5px;
-    font-size: 0.54rem;
-  }
-
-  .match-actions {
-    width: min(100%, 54vw, 194px);
-    gap: 2px;
-    margin-top: 4px;
-  }
-
-  .match-actions button {
-    padding: 4px 1px;
-    font-size: 0.44rem;
-  }
-}
-
 @media (max-width: 425px) {
   .brix-layout {
     grid-template-columns: minmax(0, 74vw) minmax(0, 22vw) !important;
@@ -3131,25 +2569,6 @@ canvas {
   }
 }
 
-@media (max-width: 720px) {
-  .cellar-card {
-    --panel-frame-pad-y: 9px;
-    --panel-frame-pad-x: 9px;
-    --panel-frame-inset: 7px;
-  }
-
-  .cellar-card::after {
-    inset: -4.5% -4.5% -4.8%;
-    background-size: 132% 139%;
-  }
-
-  .preview-card {
-    --panel-frame-pad-y: 8px;
-    --panel-frame-pad-x: 8px;
-    --panel-frame-inset: 6px;
-  }
-}
-
 @media (max-width: 425px) {
   .cellar-card {
     --panel-frame-pad-y: 7px;
@@ -3171,5 +2590,682 @@ canvas {
     --panel-frame-pad-y: 6px;
     --panel-frame-pad-x: 6px;
     --panel-frame-inset: 5px;
+  }
+}
+
+/* Authoritative responsive geometry derived from the locked desktop layout. */
+.brix-app {
+  width: min(1220px, calc(100% - (var(--app-gutter) * 2))) !important;
+  min-height: 100dvh;
+  height: auto !important;
+  padding: clamp(8px, 1.4vw, 18px) 0 20px !important;
+}
+
+.brix-layout {
+  display: grid !important;
+  grid-template-areas: "left board right" !important;
+  grid-template-columns: minmax(210px, 250px) minmax(290px, 380px) minmax(210px, 250px) !important;
+  gap: clamp(10px, 1.2vw, 18px) !important;
+  align-items: start !important;
+  justify-content: center !important;
+}
+
+.left-rail {
+  grid-area: left !important;
+}
+
+.board-column {
+  grid-area: board !important;
+  width: 100% !important;
+  max-width: 380px;
+  justify-self: center !important;
+  align-self: start !important;
+  gap: clamp(10px, 1.1vw, 16px);
+}
+
+.right-rail {
+  grid-area: right !important;
+}
+
+.side-rail {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: clamp(10px, 1.2vw, 16px) !important;
+  padding-top: clamp(24px, 4vh, 52px) !important;
+  width: 100% !important;
+  max-height: none !important;
+}
+
+.cellar-card {
+  --panel-frame-pad-y: clamp(18px, 2vw, 24px);
+  --panel-frame-pad-x: clamp(20px, 2.2vw, 28px);
+  --panel-frame-inset: clamp(13px, 1.5vw, 17px);
+  position: relative !important;
+  overflow: visible !important;
+  isolation: isolate !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: var(--panel-frame-pad-y) var(--panel-frame-pad-x) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 251, 238, 0.92), rgba(255, 242, 213, 0.98)),
+    var(--panel-fill) !important;
+  background-clip: padding-box !important;
+  box-shadow: none !important;
+}
+
+.cellar-card::before {
+  inset: var(--panel-frame-inset) !important;
+  border-radius: 14px !important;
+}
+
+.cellar-card::after {
+  display: block !important;
+  inset: -5% -5% -5% !important;
+  z-index: 1 !important;
+  background: url("./assets/vineyard/border.png") center / 143% 151% no-repeat !important;
+}
+
+.cellar-card > * {
+  position: relative !important;
+  z-index: 0 !important;
+}
+
+.board-frame {
+  width: min(100%, 380px) !important;
+}
+
+.score-burst-layer {
+  width: min(100%, 380px) !important;
+}
+
+.practice-speed-control {
+  width: min(100%, 320px) !important;
+}
+
+.match-actions {
+  width: min(100%, 380px) !important;
+}
+
+.match-card .stat-row,
+.compact-card .stat-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: baseline !important;
+  gap: clamp(4px, 0.8vw, 12px) !important;
+}
+
+.match-card .stat-row strong,
+.compact-card .stat-row strong {
+  text-align: right !important;
+}
+
+.cellar-card h2,
+.cellar-card p,
+.cellar-card strong,
+.field-label,
+.stat-row,
+.stat-row span,
+.stat-row strong,
+.preview-card strong,
+.social-launch-button,
+.mini-button,
+.practice-speed-control,
+.match-actions button {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.preview-card {
+  --panel-frame-pad-y: clamp(14px, 1.6vw, 18px);
+  --panel-frame-pad-x: clamp(14px, 1.6vw, 18px);
+  --panel-frame-inset: clamp(12px, 1.3vw, 15px);
+  text-align: center !important;
+}
+
+.queue-preview-card canvas {
+  max-width: clamp(84px, 11vw, 118px) !important;
+  aspect-ratio: 1 / 1.8 !important;
+}
+
+.hold-preview-card canvas {
+  max-width: clamp(84px, 11vw, 118px) !important;
+  aspect-ratio: 1 / 0.82 !important;
+}
+
+@media (max-width: 750px) and (min-width: 426px) {
+  .brix-app {
+    width: min(100%, 740px) !important;
+    max-width: 740px !important;
+    padding: 4px 0 10px !important;
+    margin: 0 auto !important;
+  }
+
+  .brix-topbar {
+    gap: 6px !important;
+    margin-bottom: 10px !important;
+  }
+
+  .brand-lockup {
+    width: 122px !important;
+    min-width: 122px !important;
+    height: 44px !important;
+  }
+
+  .topbar-actions {
+    gap: 4px !important;
+  }
+
+  .status-pill {
+    min-width: 76px !important;
+    max-width: 102px !important;
+    padding: 4px 7px !important;
+    font-size: 0.68rem !important;
+  }
+
+  .ghost-button {
+    min-width: 54px !important;
+    padding: 4px 7px !important;
+    font-size: 0.68rem !important;
+  }
+
+  .brix-layout {
+    grid-template-columns: minmax(0, 66vw) minmax(0, 28vw) !important;
+    grid-template-areas:
+      "board right"
+      "board left" !important;
+    column-gap: 10px !important;
+    row-gap: 12px !important;
+  }
+
+  .right-rail {
+    --hold-card-min-height: 84px;
+    gap: 6px !important;
+    padding-top: 0 !important;
+  }
+
+  .left-rail {
+    gap: 6px !important;
+    padding-top: 0 !important;
+  }
+
+  .board-column {
+    max-width: none !important;
+    gap: 6px !important;
+  }
+
+  .board-frame,
+  .score-burst-layer,
+  .practice-speed-control,
+  .match-actions {
+    width: min(100%, 66vw, 390px) !important;
+  }
+
+  .cellar-card {
+    --panel-frame-pad-y: 9px;
+    --panel-frame-pad-x: 9px;
+    --panel-frame-inset: 7px;
+    padding: var(--panel-frame-pad-y) var(--panel-frame-pad-x) !important;
+  }
+
+  .cellar-card::after {
+    inset: -4.6% -4.6% -5% !important;
+    background-size: 132% 139% !important;
+  }
+
+  .preview-card {
+    --panel-frame-pad-y: 8px;
+    --panel-frame-pad-x: 8px;
+    --panel-frame-inset: 6px;
+  }
+
+  .hold-preview-card {
+    min-height: 88px;
+  }
+
+  .queue-preview-card {
+    min-height: calc(var(--hold-card-min-height) * 2.7);
+  }
+
+  .cellar-card h2 {
+    font-size: 0.64rem !important;
+  }
+
+  .cellar-card p,
+  .stat-row {
+    font-size: 0.52rem !important;
+    line-height: 1.15 !important;
+  }
+
+  .match-card .stat-row,
+  .compact-card .stat-row {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 2px 6px !important;
+  }
+
+  .match-card .stat-row strong,
+  .compact-card .stat-row strong {
+    font-size: 0.66rem !important;
+    text-align: right !important;
+  }
+
+  .field-label,
+  .eyebrow,
+  .mini-button {
+    font-size: 0.48rem !important;
+  }
+
+  .social-launch-button,
+  .mini-button {
+    width: 100% !important;
+    padding: 2px 4px !important;
+    font-size: 0.46rem !important;
+  }
+
+  .card-heading-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 2px !important;
+  }
+
+  .compact-card input {
+    padding: 5px 6px !important;
+    font-size: 0.58rem !important;
+  }
+
+  .practice-speed-control {
+    gap: 2px !important;
+    margin-top: 3px !important;
+    font-size: 0.5rem !important;
+  }
+
+  .practice-speed-control select {
+    padding: 4px 16px 4px 5px !important;
+    font-size: 0.6rem !important;
+  }
+
+  .match-actions {
+    gap: 3px !important;
+    margin-top: 3px !important;
+  }
+
+  .match-actions button {
+    padding: 4px 2px !important;
+    font-size: 0.5rem !important;
+  }
+
+  .queue-preview-card canvas {
+    max-width: 42px !important;
+    aspect-ratio: 1 / 2.15 !important;
+  }
+
+  .hold-preview-card canvas {
+    max-width: min(100%, 60px) !important;
+    aspect-ratio: 1 / 0.74 !important;
+    margin-bottom: 4px !important;
+  }
+}
+
+@media (max-height: 700px) and (min-width: 426px) {
+  .brix-app {
+    padding: 4px 0 10px !important;
+  }
+
+  .brix-topbar {
+    gap: 6px !important;
+    margin-bottom: 2px !important;
+  }
+
+  .brand-lockup {
+    width: clamp(148px, 20vw, 220px) !important;
+    min-width: clamp(148px, 20vw, 220px) !important;
+    height: clamp(54px, 6.8vw, 82px) !important;
+  }
+
+  .topbar-actions {
+    gap: 6px !important;
+  }
+
+  .status-pill {
+    min-width: 82px !important;
+    max-width: 112px !important;
+    padding: 4px 7px !important;
+    font-size: 0.7rem !important;
+  }
+
+  .ghost-button {
+    min-width: 56px !important;
+    padding: 4px 7px !important;
+    font-size: 0.7rem !important;
+  }
+
+  .brix-layout {
+    gap: 8px !important;
+  }
+
+  .side-rail {
+    gap: 8px !important;
+    padding-top: 12px !important;
+  }
+
+  .board-column {
+    gap: 8px !important;
+  }
+
+  .board-frame,
+  .score-burst-layer {
+    width: min(100%, 340px) !important;
+  }
+
+  .practice-speed-control {
+    width: min(100%, 286px) !important;
+    gap: 4px !important;
+    margin-top: 4px !important;
+    font-size: 0.64rem !important;
+  }
+
+  .practice-speed-control select {
+    font-size: 0.68rem !important;
+  }
+
+  .match-actions {
+    width: min(100%, 340px) !important;
+    gap: 5px !important;
+    margin-top: 4px !important;
+  }
+
+  .match-actions button {
+    padding: 5px 3px !important;
+    font-size: 0.62rem !important;
+  }
+
+  .cellar-card {
+    --panel-frame-pad-y: 14px;
+    --panel-frame-pad-x: 16px;
+    --panel-frame-inset: 10px;
+  }
+
+  .preview-card {
+    --panel-frame-pad-y: 10px;
+    --panel-frame-pad-x: 10px;
+    --panel-frame-inset: 8px;
+  }
+
+  .cellar-card h2 {
+    font-size: 0.72rem !important;
+  }
+
+  .cellar-card p,
+  .stat-row {
+    font-size: 0.6rem !important;
+    line-height: 1.16 !important;
+  }
+
+  .stat-row strong {
+    font-size: 0.84rem !important;
+  }
+
+  .field-label,
+  .eyebrow,
+  .mini-button {
+    font-size: 0.54rem !important;
+  }
+
+  .compact-card input {
+    padding: 6px 8px !important;
+    font-size: 0.62rem !important;
+  }
+
+  .queue-preview-card canvas {
+    max-width: 72px !important;
+  }
+
+  .hold-preview-card canvas {
+    max-width: 80px !important;
+  }
+}
+
+@media (max-width: 425px) {
+  .brix-app {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    min-height: 100dvh !important;
+    height: 100dvh !important;
+    padding: 4px 2px 10px !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .brix-topbar {
+    gap: 4px !important;
+    margin-bottom: 28px !important;
+  }
+
+  .brand-lockup {
+    width: 102px !important;
+    min-width: 102px !important;
+    height: 38px !important;
+  }
+
+  .topbar-actions {
+    gap: 4px !important;
+  }
+
+  .status-pill {
+    min-width: 68px !important;
+    max-width: 88px !important;
+    padding: 4px 6px !important;
+    font-size: 0.62rem !important;
+  }
+
+  .ghost-button {
+    min-width: 48px !important;
+    padding: 4px 6px !important;
+    font-size: 0.62rem !important;
+  }
+
+  .brix-layout {
+    grid-template-columns: minmax(0, 71vw) minmax(0, 25vw) !important;
+    grid-template-areas:
+      "board right"
+      "board left" !important;
+    column-gap: 13px !important;
+    row-gap: 10px !important;
+  }
+
+  .right-rail {
+    --hold-card-min-height: 76px;
+    gap: 4px !important;
+    padding-top: 0 !important;
+  }
+
+  .left-rail {
+    gap: 4px !important;
+    padding-top: 0 !important;
+  }
+
+  .board-column {
+    max-width: none !important;
+    gap: 6px !important;
+  }
+
+  .board-frame,
+  .score-burst-layer,
+  .practice-speed-control,
+  .match-actions {
+    width: min(100%, 71vw, 300px) !important;
+  }
+
+  .cellar-card {
+    --panel-frame-pad-y: 7px;
+    --panel-frame-pad-x: 7px;
+    --panel-frame-inset: 5px;
+    padding: var(--panel-frame-pad-y) var(--panel-frame-pad-x) !important;
+  }
+
+  .cellar-card::before {
+    border-radius: 8px !important;
+  }
+
+  .cellar-card::after {
+    inset: -15% -10% -13% -12%!important;
+    background-size: 126% 132% !important;
+  }
+
+  .preview-card {
+    --panel-frame-pad-y: 6px;
+    --panel-frame-pad-x: 6px;
+    --panel-frame-inset: 5px;
+  }
+
+  .hold-preview-card {
+    min-height: 82px;
+  }
+
+  .queue-preview-card {
+    min-height: calc(var(--hold-card-min-height) * 2.45);
+  }
+
+  .cellar-card h2 {
+    font-size: 0.58rem !important;
+  }
+
+  .cellar-card p,
+  .stat-row {
+    font-size: 0.44rem !important;
+    line-height: 1.15 !important;
+  }
+
+  .match-card .stat-row,
+  .compact-card .stat-row {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 2px !important;
+  }
+
+  .match-card .stat-row strong,
+  .compact-card .stat-row strong {
+    font-size: 0.56rem !important;
+    text-align: right !important;
+  }
+
+  .field-label,
+  .eyebrow {
+    font-size: 0.42rem !important;
+  }
+
+  .social-launch-button,
+  .mini-button {
+    padding: 3px 4px !important;
+    font-size: 0.42rem !important;
+  }
+
+  .compact-card input {
+    padding: 4px 5px !important;
+    font-size: 0.52rem !important;
+  }
+
+  .practice-speed-control {
+    gap: 2px !important;
+    font-size: 0.44rem !important;
+  }
+
+  .practice-speed-control select {
+    padding: 4px 16px 4px 5px !important;
+    font-size: 0.56rem !important;
+  }
+
+  .match-actions {
+    gap: 2px !important;
+  }
+
+  .match-actions button {
+    padding: 4px 1px !important;
+    font-size: 0.44rem !important;
+  }
+
+  .queue-preview-card canvas {
+    max-width: 34px !important;
+    aspect-ratio: 1 / 2.25 !important;
+  }
+
+  .hold-preview-card canvas {
+    max-width: min(100%, 54px) !important;
+    aspect-ratio: 1 / 0.72 !important;
+    margin-bottom: 4px !important;
+  }
+}
+
+@media (max-width: 345px) {
+  .brix-app {
+    padding: 4px 1px 8px !important;
+  }
+
+  .brand-lockup {
+    width: 92px !important;
+    min-width: 92px !important;
+    height: 34px !important;
+  }
+
+  .status-pill,
+  .ghost-button {
+    min-width: 0 !important;
+    max-width: 82px !important;
+    font-size: 0.56rem !important;
+  }
+
+  .brix-layout {
+    grid-template-columns: minmax(0, 69vw) minmax(0, 27vw) !important;
+    gap: 3px !important;
+    column-gap: 13px !important;
+
+  }
+
+  .right-rail {
+    --hold-card-min-height: 82px;
+  }
+
+  .board-frame,
+  .score-burst-layer,
+  .practice-speed-control,
+  .match-actions {
+    width: min(100%, 69vw, 260px) !important;
+  }
+
+  .cellar-card {
+    --panel-frame-pad-y: 6px;
+    --panel-frame-pad-x: 6px;
+    --panel-frame-inset: 4px;
+  }
+
+  .cellar-card::after {
+    background-size: 122% 128% !important;
+  }
+
+  .cellar-card h2,
+  .cellar-card p,
+  .stat-row,
+  .field-label,
+  .eyebrow,
+  .preview-card strong,
+  .match-actions button,
+  .practice-speed-control,
+  .practice-speed-control select,
+  .social-launch-button,
+  .mini-button,
+  .compact-card input {
+    font-size: 0.4rem !important;
+  }
+
+  .match-card .stat-row strong,
+  .compact-card .stat-row strong {
+    font-size: 0.5rem !important;
+  }
+
+  .queue-preview-card canvas {
+    max-width: 28px !important;
+  }
+
+  .hold-preview-card canvas {
+    max-width: min(100%, 46px) !important;
   }
 }
