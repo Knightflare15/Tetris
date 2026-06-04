@@ -60,7 +60,7 @@ export function App(): ReactElement {
     setScoreBursts((current) => [...current.slice(-3), burst]);
     window.setTimeout(() => {
       setScoreBursts((current) => current.filter((item) => item.id !== burst.id));
-    }, 1500);
+    }, 2500);
   }, [game.snapshot?.clearEffect]);
 
   return (

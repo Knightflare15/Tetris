@@ -818,25 +818,31 @@ canvas {
 .score-burst {
   position: absolute;
   top: 18%;
-  min-width: 92px;
-  max-width: 132px;
-  padding: 7px 10px 8px;
-  border: 1px solid rgba(255, 238, 198, 0.58);
-  border-radius: 8px;
-  color: #fff8dd;
+  min-width: 96px;
+  max-width: 136px;
+  padding: 6px 8px 7px;
+  border: 3px solid var(--pixel-outline);
+  border-radius: 2px;
+  color: #fff7d1;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.04) 34%),
-    linear-gradient(150deg, rgba(203, 37, 89, 0.94), rgba(70, 17, 57, 0.9));
+    linear-gradient(
+      180deg,
+      #f3b3c4 0 16%,
+      #d56d97 16% 24%,
+      #a6436d 24% 72%,
+      #6d2347 72% 100%
+    );
   text-align: center;
   text-shadow:
-    0 1px 0 rgba(47, 11, 28, 0.78),
-    0 0 14px rgba(255, 210, 122, 0.42);
+    0 2px 0 rgba(49, 24, 39, 0.96),
+    1px 0 0 rgba(49, 24, 39, 0.9);
   box-shadow:
-    0 16px 32px rgba(20, 7, 22, 0.42),
-    0 0 0 4px rgba(255, 214, 137, 0.08),
-    inset 0 1px 0 rgba(255, 245, 217, 0.46);
+    0 4px 0 rgba(49, 24, 39, 0.95),
+    4px 4px 0 rgba(68, 36, 55, 0.34),
+    inset 0 2px 0 rgba(255, 236, 198, 0.66),
+    inset 0 -2px 0 rgba(88, 30, 57, 0.88);
   transform: translateY(-50%);
-  animation: score-burst-float-left 1450ms cubic-bezier(0.13, 0.78, 0.17, 1) forwards;
+  animation: score-burst-float-left 1900ms cubic-bezier(0.16, 0.94, 0.22, 1) forwards;
 }
 
 .score-burst-left {
@@ -844,14 +850,14 @@ canvas {
 }
 
 .score-burst-left::before {
-  left: -12px;
-  animation: score-spark-left 1450ms ease-out forwards;
+  left: -11px;
+  animation: score-spark-left 920ms steps(5, end) forwards;
 }
 
 .score-burst-left::after {
-  left: -24px;
+  left: -21px;
   right: auto;
-  animation: score-spark-left 1450ms ease-out forwards;
+  animation: score-spark-left 920ms steps(5, end) forwards;
 }
 
 .score-burst-right {
@@ -860,59 +866,81 @@ canvas {
 }
 
 .score-burst-right::before {
-  right: -24px;
+  right: -21px;
   left: auto;
-  animation: score-spark-right 1450ms ease-out forwards;
+  animation: score-spark-right 920ms steps(5, end) forwards;
 }
 
 .score-burst-right::after {
-  right: -12px;
-  animation: score-spark-right 1450ms ease-out forwards;
+  right: -11px;
+  animation: score-spark-right 920ms steps(5, end) forwards;
 }
 
 .score-burst::before,
 .score-burst::after {
   position: absolute;
   top: 50%;
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  background: #ffd990;
-  box-shadow: 0 0 12px rgba(255, 217, 144, 0.74);
+  width: 7px;
+  height: 7px;
+  border: 2px solid var(--pixel-outline);
+  border-radius: 1px;
+  background: #ffd86d;
+  box-shadow: 0 2px 0 rgba(49, 24, 39, 0.9);
   content: "";
 }
 
 .score-burst strong {
   display: block;
-  color: #fff7c7;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 1.3rem;
-  line-height: 0.95;
-  letter-spacing: 0;
-  text-transform: lowercase;
+  color: #fff7cf;
+  font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.94rem;
+  font-weight: 900;
+  line-height: 0.92;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .score-burst span {
   display: block;
-  margin-top: 4px;
-  color: #9edfcf;
-  font-size: 0.68rem;
+  margin-top: 3px;
+  color: #ffe8ad;
+  font-size: 0.56rem;
   font-weight: 900;
-  letter-spacing: 0;
+  line-height: 1.05;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .score-burst-combo {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.04) 34%),
-    linear-gradient(150deg, rgba(211, 75, 54, 0.96), rgba(108, 35, 32, 0.92));
+    linear-gradient(
+      180deg,
+      #ffd08e 0 16%,
+      #ff934f 16% 24%,
+      #d05f35 24% 72%,
+      #7c311f 72% 100%
+    );
 }
 
 .score-burst-tspin {
-  border-color: rgba(158, 223, 207, 0.76);
+  color: #efffff;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.04) 34%),
-    linear-gradient(150deg, rgba(40, 146, 145, 0.96), rgba(50, 26, 74, 0.94));
+    linear-gradient(
+      180deg,
+      #bdf4ee 0 16%,
+      #59d2c9 16% 24%,
+      #278f98 24% 72%,
+      #2f2b66 72% 100%
+    );
+}
+
+.score-burst-tspin strong {
+  color: #f2ffff;
+}
+
+.score-burst-tspin span {
+  color: #cbfff8;
 }
 
 @keyframes score-pop {
@@ -934,66 +962,74 @@ canvas {
 @keyframes score-burst-float-left {
   0% {
     opacity: 0;
-    transform: translate(-18px, -34%) scale(0.54) rotate(-5deg);
+    transform: translate(-10px, -44%) scale(0.56);
   }
-  16% {
+  9% {
     opacity: 1;
-    transform: translate(-4px, -50%) scale(1.14) rotate(2deg);
+    transform: translate(-2px, -50%) scale(1.12);
   }
-  72% {
+  24% {
     opacity: 1;
-    transform: translate(-12px, -86%) scale(1) rotate(-1deg);
+    transform: translate(-8px, -78%) scale(1);
+  }
+  80% {
+    opacity: 1;
+    transform: translate(-8px, -80%) scale(1);
   }
   100% {
     opacity: 0;
-    transform: translate(-22px, -132%) scale(0.82) rotate(4deg);
+    transform: translate(-16px, -108%) scale(0.88);
   }
 }
 
 @keyframes score-burst-float-right {
   0% {
     opacity: 0;
-    transform: translate(18px, -34%) scale(0.54) rotate(5deg);
+    transform: translate(10px, -44%) scale(0.56);
   }
-  16% {
+  9% {
     opacity: 1;
-    transform: translate(4px, -50%) scale(1.14) rotate(-2deg);
+    transform: translate(2px, -50%) scale(1.12);
   }
-  72% {
+  24% {
     opacity: 1;
-    transform: translate(12px, -86%) scale(1) rotate(1deg);
+    transform: translate(8px, -78%) scale(1);
+  }
+  80% {
+    opacity: 1;
+    transform: translate(8px, -80%) scale(1);
   }
   100% {
     opacity: 0;
-    transform: translate(22px, -132%) scale(0.82) rotate(-4deg);
+    transform: translate(16px, -108%) scale(0.88);
   }
 }
 
 @keyframes score-spark-left {
   0% {
     opacity: 0;
-    transform: translate(8px, -50%) scale(0.4) rotate(0deg);
+    transform: translate(6px, -50%) scale(0.6);
   }
-  22% {
+  26% {
     opacity: 1;
   }
   100% {
     opacity: 0;
-    transform: translate(-22px, -34px) scale(0.1) rotate(180deg);
+    transform: translate(-12px, -18px) scale(0.18);
   }
 }
 
 @keyframes score-spark-right {
   0% {
     opacity: 0;
-    transform: translate(-8px, -50%) scale(0.4) rotate(0deg);
+    transform: translate(-6px, -50%) scale(0.6);
   }
-  22% {
+  26% {
     opacity: 1;
   }
   100% {
     opacity: 0;
-    transform: translate(22px, -34px) scale(0.1) rotate(-180deg);
+    transform: translate(12px, -18px) scale(0.18);
   }
 }
 
