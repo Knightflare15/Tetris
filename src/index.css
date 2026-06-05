@@ -90,7 +90,6 @@ button {
   line-height: 1.1;
   overflow-wrap: anywhere;
   cursor: pointer;
-  text-shadow: 0 2px 0 rgba(43, 20, 33, 0.45);
   box-shadow:
     0 6px 0 rgba(73, 39, 24, 0.42),
     0 12px 22px rgba(129, 81, 49, 0.18),
