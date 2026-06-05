@@ -587,7 +587,7 @@ canvas {
 
 .match-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
   gap: clamp(5px, 1vw, 10px);
   width: min(100%, 550px);
   margin-top: clamp(7px, 1vw, 12px);
@@ -611,6 +611,12 @@ canvas {
     linear-gradient(180deg, var(--button-blue), var(--button-blue-deep));
 }
 
+.territory-button {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.04) 36%),
+    linear-gradient(180deg, #f0a73a, #b66a16);
+}
+
 .practice-speed-control {
   display: flex;
   align-items: center;
@@ -630,6 +636,118 @@ canvas {
 
 .compact-card input {
   margin-bottom: clamp(5px, 0.9vw, 10px);
+}
+
+.territory-format-control {
+  margin-top: 0;
+}
+
+.territory-layout {
+  align-items: center;
+}
+
+.territory-layout * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.territory-board-column {
+  gap: clamp(7px, 1vw, 12px);
+}
+
+.territory-board-frame {
+  width: min(100%, clamp(150px, min(34vw, calc((100dvh - 210px) * 0.52)), 340px));
+}
+
+.territory-rotation-buttons {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.territory-lane-picker {
+  display: grid;
+  gap: 4px;
+}
+
+.territory-score-card {
+  display: grid;
+  gap: 7px;
+}
+
+.territory-draft-card,
+.territory-hold-card {
+  display: grid;
+  gap: 8px;
+}
+
+.territory-draft-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.territory-piece-card {
+  display: grid;
+  gap: 3px;
+  justify-items: center;
+  padding: 7px;
+  border: 3px solid var(--pixel-outline);
+  border-radius: 10px;
+  color: #6f3045;
+  background: rgba(255, 248, 224, 0.72);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.38);
+}
+
+.territory-piece-card.is-selected {
+  outline: 3px solid #f0b23d;
+  outline-offset: 2px;
+}
+
+.territory-piece-card canvas,
+.territory-hold-row canvas {
+  width: 100%;
+  max-width: 72px;
+  height: auto;
+  aspect-ratio: 1.25 / 1;
+  border: 2px solid var(--pixel-outline);
+  border-radius: 8px;
+  background: #24142b;
+}
+
+.territory-hold-row {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) auto;
+  gap: 7px;
+  align-items: center;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  color: #6f3045;
+  font-size: clamp(0.62rem, 1vw, 0.78rem);
+}
+
+.territory-hold-row.is-active {
+  color: #9f3f6b;
+}
+
+.territory-hold-row.is-interactive {
+  cursor: pointer;
+}
+
+.territory-hold-row.is-selected {
+  padding: 5px 7px;
+  border: 2px solid #f0b23d;
+  border-radius: 10px;
+  background: rgba(255, 248, 224, 0.52);
+}
+
+.territory-help {
+  color: #7b6045;
+  font-size: clamp(0.56rem, 0.95vw, 0.72rem);
+  line-height: 1.25;
 }
 
 .field-label {
@@ -1275,6 +1393,22 @@ canvas {
 
 .friends-modal {
   width: min(100%, 520px);
+}
+
+.menu-modal {
+  width: min(100%, 360px);
+}
+
+.menu-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.inline-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
 }
 
 .friends-modal .card-heading-row {

@@ -8,6 +8,10 @@ import {
   type RoomSnapshot,
   type ServerToClientEvents,
   type SocialSummary,
+  type TerritoryFormat,
+  type TerritoryPreviewAction,
+  type TerritorySnapshot,
+  type TerritoryTurnAction,
 } from "../shared/types";
 
 const STORAGE_KEY = "coop-tetris-session";
@@ -21,6 +25,7 @@ interface StoredSession {
   authMode?: AuthMode;
   roomId?: string;
   reconnectToken?: string;
+  mode?: "classic" | "territory";
 }
 
 export interface BrixGameState {
@@ -31,6 +36,7 @@ export interface BrixGameState {
   oidcProviderName: string | null;
   displayName: string;
   snapshot: RoomSnapshot | null;
+  territorySnapshot: TerritorySnapshot | null;
   localSlot: PlayerSlot | null;
   roomId: string | null;
   latencyMs: number | null;
@@ -53,6 +59,7 @@ export interface BrixGameActions {
   requestPasswordReset: (email: string) => Promise<boolean>;
   resetPassword: (email: string, otp: string, password: string) => Promise<boolean>;
   connectAndQueue: () => Promise<void>;
+  connectAndQueueTerritory: (format: TerritoryFormat) => Promise<void>;
   startPractice: (botSpeed: PracticeBotSpeed) => Promise<void>;
   refreshSocial: () => Promise<void>;
   addFriend: (username: string) => Promise<void>;
@@ -61,12 +68,16 @@ export interface BrixGameActions {
   joinFriend: (friendId: string) => Promise<void>;
   reconnectStoredSession: () => Promise<void>;
   sendInput: (action: InputAction) => void;
+  sendTerritoryAction: (action: TerritoryTurnAction) => void;
+  sendTerritoryPreview: (preview: TerritoryPreviewAction) => void;
+  leaveToHome: () => void;
   signOut: () => void;
 }
 
 export function useBrixGame(): BrixGameState & BrixGameActions {
   const socketRef = useRef<GameSocket | null>(null);
   const snapshotRef = useRef<RoomSnapshot | null>(null);
+  const territorySnapshotRef = useRef<TerritorySnapshot | null>(null);
   const inputSeqRef = useRef(0);
   const pingTimerRef = useRef<number | null>(null);
 
@@ -77,6 +88,7 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
   const [oidcProviderName, setOidcProviderName] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState("Guest");
   const [snapshot, setSnapshot] = useState<RoomSnapshot | null>(null);
+  const [territorySnapshot, setTerritorySnapshot] = useState<TerritorySnapshot | null>(null);
   const [localSlot, setLocalSlot] = useState<PlayerSlot | null>(null);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
@@ -87,6 +99,10 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
   useEffect(() => {
     snapshotRef.current = snapshot;
   }, [snapshot]);
+
+  useEffect(() => {
+    territorySnapshotRef.current = territorySnapshot;
+  }, [territorySnapshot]);
 
   const stopPing = useCallback(() => {
     if (pingTimerRef.current !== null) {
@@ -146,25 +162,39 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
       setDisplayName(user.displayName);
     });
 
-    socket.on("matchmakingQueued", ({ queueSize }) => {
-      setStatus(`Queued (${queueSize})`);
+    socket.on("matchmakingQueued", ({ queueSize, mode, format }) => {
+      setStatus(mode === "territory" ? `Territory ${format} queued (${queueSize})` : `Queued (${queueSize})`);
     });
 
-    socket.on("roomJoined", ({ roomId: nextRoomId, slot, reconnectToken }) => {
+    socket.on("roomJoined", ({ roomId: nextRoomId, slot, reconnectToken, mode }) => {
       setLocalSlot(slot);
       setRoomId(nextRoomId);
       const session = loadSession();
       if (session) {
-        saveSession({ ...session, roomId: nextRoomId, reconnectToken });
+        saveSession({ ...session, roomId: nextRoomId, reconnectToken, mode: mode ?? "classic" });
       }
-      setStatus("Playing");
+      setStatus(mode === "territory" ? "Territory" : "Playing");
     });
 
     socket.on("snapshot", (nextSnapshot) => {
       snapshotRef.current = nextSnapshot;
       setSnapshot(nextSnapshot);
+      territorySnapshotRef.current = null;
+      setTerritorySnapshot(null);
       if (nextSnapshot.gameOver) {
         setStatus(nextSnapshot.winnerMessage ?? "Game over");
+      }
+    });
+
+    socket.on("territorySnapshot", (nextSnapshot) => {
+      territorySnapshotRef.current = nextSnapshot;
+      setTerritorySnapshot(nextSnapshot);
+      snapshotRef.current = null;
+      setSnapshot(null);
+      if (nextSnapshot.status === "ended") {
+        setStatus(nextSnapshot.winner === "draw" ? "Territory draw" : `Territory winner: ${nextSnapshot.winner ?? "-"}`);
+      } else {
+        setStatus(`Territory ${nextSnapshot.format}`);
       }
     });
 
@@ -324,6 +354,13 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
     socket.emit("joinMatchmaking");
   }, [connectSocket, ensureToken]);
 
+  const connectAndQueueTerritory = useCallback(async (format: TerritoryFormat) => {
+    setStatus("Finding territory match");
+    const token = await ensureToken();
+    const socket = connectSocket(token);
+    socket.emit("joinTerritory", { format });
+  }, [connectSocket, ensureToken]);
+
   const startPractice = useCallback(async (botSpeed: PracticeBotSpeed) => {
     setStatus("Starting practice");
     const token = await ensureToken();
@@ -385,11 +422,44 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
     });
   }, []);
 
+  const sendTerritoryAction = useCallback((action: TerritoryTurnAction) => {
+    const currentSnapshot = territorySnapshotRef.current;
+    const socket = socketRef.current;
+    if (!socket?.connected || !currentSnapshot || currentSnapshot.status !== "playing") {
+      return;
+    }
+    socket.emit("territoryAction", action);
+  }, []);
+
+  const sendTerritoryPreview = useCallback((preview: TerritoryPreviewAction) => {
+    const currentSnapshot = territorySnapshotRef.current;
+    const socket = socketRef.current;
+    if (!socket?.connected || !currentSnapshot || currentSnapshot.status !== "playing") {
+      return;
+    }
+    socket.emit("territoryPreview", preview);
+  }, []);
+
+  const leaveToHome = useCallback(() => {
+    clearStoredRoomSession();
+    disconnectSocket();
+    setSnapshot(null);
+    setTerritorySnapshot(null);
+    snapshotRef.current = null;
+    territorySnapshotRef.current = null;
+    setRoomId(null);
+    setLocalSlot(null);
+    setLatencyMs(null);
+    setStatus(authMode === "account" ? "Signed in" : authMode === "guest" ? "Guest ready" : "Offline");
+  }, [authMode, disconnectSocket]);
+
   const signOut = useCallback(() => {
     clearStoredAuth("Signed out. Login, register, or continue as guest.");
     disconnectSocket();
     setSnapshot(null);
+    setTerritorySnapshot(null);
     snapshotRef.current = null;
+    territorySnapshotRef.current = null;
     setStatus("Offline");
     setLatencyMs(null);
     setSocial(null);
@@ -491,6 +561,7 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
     oidcProviderName,
     displayName,
     snapshot,
+    territorySnapshot,
     localSlot,
     roomId,
     latencyMs,
@@ -504,6 +575,7 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
     requestPasswordReset,
     resetPassword,
     connectAndQueue,
+    connectAndQueueTerritory,
     startPractice,
     refreshSocial,
     addFriend,
@@ -512,6 +584,9 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
     joinFriend,
     reconnectStoredSession,
     sendInput,
+    sendTerritoryAction,
+    sendTerritoryPreview,
+    leaveToHome,
     signOut,
   };
 }
@@ -593,6 +668,18 @@ function loadSession(): StoredSession | null {
   } catch {
     return null;
   }
+}
+
+function clearStoredRoomSession(): void {
+  const session = loadSession();
+  if (!session) {
+    return;
+  }
+  saveSession({
+    token: session.token,
+    authMode: session.authMode,
+    mode: session.mode,
+  });
 }
 
 function consumeAuthRedirect(): { token?: string; error?: string } | null {

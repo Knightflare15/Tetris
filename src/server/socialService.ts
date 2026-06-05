@@ -146,7 +146,7 @@ export class SocialService {
       socket.emit("serverError", { message: "You can only join friends." });
       return;
     }
-    if (this.roomManager.playerFor(socket.id)) {
+    if (this.roomManager.isSocketInRoom(socket.id)) {
       socket.emit("serverError", { message: "You are already in a room." });
       return;
     }
@@ -170,8 +170,8 @@ export class SocialService {
       throw new Error("Friend room created without both players.");
     }
 
-    socket.emit("roomJoined", { roomId: state.roomId, slot: "A", reconnectToken: playerA.reconnectToken });
-    friendSocket.emit("roomJoined", { roomId: state.roomId, slot: "B", reconnectToken: playerB.reconnectToken });
+    socket.emit("roomJoined", { roomId: state.roomId, slot: "A", reconnectToken: playerA.reconnectToken, mode: "classic" });
+    friendSocket.emit("roomJoined", { roomId: state.roomId, slot: "B", reconnectToken: playerB.reconnectToken, mode: "classic" });
     this.io.to(state.roomId).emit("snapshot", this.roomManager.snapshotForSocket(socket.id)!);
     await this.notifyUsers([user.userId, friendId]);
   }
@@ -245,7 +245,7 @@ export class SocialService {
         username: friend.username,
         displayName: friend.displayName,
         online: Boolean(onlineEntry),
-        inGame: socketId ? Boolean(this.roomManager.playerFor(socketId)) : false,
+        inGame: socketId ? this.roomManager.isSocketInRoom(socketId) : false,
       };
     });
   }
@@ -302,7 +302,7 @@ export class SocialService {
     }
     for (const socketId of entry.sockets) {
       const socket = this.io.sockets.sockets.get(socketId) as GameSocket | undefined;
-      if (socket && !this.roomManager.playerFor(socketId)) {
+      if (socket && !this.roomManager.isSocketInRoom(socketId)) {
         return socket;
       }
     }

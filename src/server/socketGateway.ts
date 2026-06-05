@@ -1,5 +1,13 @@
 import type { Server, Socket } from "socket.io";
-import type { AuthUser, ClientInput, ClientToServerEvents, ServerToClientEvents } from "../shared/types";
+import type {
+  AuthUser,
+  ClientInput,
+  ClientToServerEvents,
+  ServerToClientEvents,
+  TerritoryFormat,
+  TerritoryPreviewAction,
+  TerritoryTurnAction,
+} from "../shared/types";
 import { AuthService } from "./authService";
 import { logger } from "./logger";
 import { MatchmakingService } from "./matchmakingService";
@@ -51,7 +59,7 @@ export function registerSocketGateway(
         socket.emit("serverError", { message: "Invalid practice speed." });
         return;
       }
-      if (roomManager.playerFor(socket.id)) {
+      if (roomManager.isSocketInRoom(socket.id)) {
         socket.emit("serverError", { message: "You are already in a room." });
         return;
       }
@@ -61,7 +69,7 @@ export function registerSocketGateway(
       if (!player) {
         throw new Error("Practice room created without player A.");
       }
-      socket.emit("roomJoined", { roomId: state.roomId, slot: "A", reconnectToken: player.reconnectToken });
+      socket.emit("roomJoined", { roomId: state.roomId, slot: "A", reconnectToken: player.reconnectToken, mode: "classic" });
       const snapshot = roomManager.snapshotForSocket(socket.id);
       if (snapshot) {
         socket.emit("snapshot", snapshot);
@@ -80,16 +88,36 @@ export function registerSocketGateway(
       });
     });
 
+    socket.on("joinTerritory", ({ format }) => {
+      if (!isTerritoryFormat(format)) {
+        socket.emit("serverError", { message: "Invalid territory format." });
+        return;
+      }
+      matchmaking.joinTerritory(socket, user, format);
+    });
+
     socket.on("reconnectRoom", ({ roomId, reconnectToken }) => {
       const player = roomManager.reconnect(socket.id, user, roomId, reconnectToken);
       if (!player) {
         socket.emit("serverError", { message: "Reconnect failed. Room or token was invalid." });
         return;
       }
-      socket.emit("roomJoined", { roomId, slot: player.slot, reconnectToken: player.reconnectToken });
       const snapshot = roomManager.snapshotForSocket(socket.id);
       if (snapshot) {
+        socket.emit("roomJoined", { roomId, slot: player.slot, reconnectToken: player.reconnectToken, mode: "classic" });
         socket.emit("snapshot", snapshot);
+        return;
+      }
+      const territorySnapshot = roomManager.territorySnapshotForSocket(socket.id);
+      if (territorySnapshot) {
+        socket.emit("roomJoined", {
+          roomId,
+          slot: player.slot,
+          reconnectToken: player.reconnectToken,
+          mode: "territory",
+          format: territorySnapshot.format,
+        });
+        socket.emit("territorySnapshot", territorySnapshot);
       }
     });
 
@@ -99,6 +127,22 @@ export function registerSocketGateway(
         return;
       }
       roomManager.enqueueInput(socket.id, input);
+    });
+
+    socket.on("territoryAction", (action: TerritoryTurnAction) => {
+      if (!isValidTerritoryAction(action)) {
+        socket.emit("serverError", { message: "Invalid territory action." });
+        return;
+      }
+      roomManager.enqueueTerritoryAction(socket.id, action);
+    });
+
+    socket.on("territoryPreview", (preview: TerritoryPreviewAction) => {
+      if (!isValidTerritoryPreview(preview)) {
+        socket.emit("serverError", { message: "Invalid territory preview." });
+        return;
+      }
+      roomManager.updateTerritoryPreview(socket.id, preview);
     });
 
     socket.on("pingCheck", ({ clientTime }) => {
@@ -136,4 +180,47 @@ function isValidInput(input: ClientInput): boolean {
 
 function isPracticeBotSpeed(value: unknown): value is "slow" | "balanced" | "quick" {
   return value === "slow" || value === "balanced" || value === "quick";
+}
+
+function isTerritoryFormat(value: unknown): value is TerritoryFormat {
+  return value === "bullet" || value === "blitz" || value === "rapid";
+}
+
+function isValidTerritoryAction(action: TerritoryTurnAction): boolean {
+  if (!action || typeof action !== "object") {
+    return false;
+  }
+  if (action.kind === "pass") {
+    return action.slot === "A" || action.slot === "B";
+  }
+  if (action.kind === "hold") {
+    return (action.slot === "A" || action.slot === "B") && typeof action.draftId === "string" && action.draftId.length > 0;
+  }
+  if (action.kind === "place") {
+    const hasValidPlacementFields =
+      (action.slot === "A" || action.slot === "B") &&
+      Number.isInteger(action.rotation) &&
+      Number.isInteger(action.lane) &&
+      action.lane >= 0 &&
+      ["top", "bottom", "left", "right"].includes(action.edge);
+    if (!hasValidPlacementFields) {
+      return false;
+    }
+    return action.source === "hold" || (action.source === "draft" && typeof action.draftId === "string" && action.draftId.length > 0);
+  }
+  return false;
+}
+
+function isValidTerritoryPreview(preview: TerritoryPreviewAction): boolean {
+  if (preview.kind === "select") {
+    return (
+      (preview.slot === "A" || preview.slot === "B") &&
+      (preview.source === "hold" || (preview.source === "draft" && typeof preview.draftId === "string" && preview.draftId.length > 0))
+    );
+  }
+  return (
+    preview.kind === "input" &&
+    (preview.slot === "A" || preview.slot === "B") &&
+    ["moveLeft", "moveRight", "softDrop", "rotateCW", "rotateCCW"].includes(preview.action)
+  );
 }

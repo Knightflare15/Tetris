@@ -12,6 +12,183 @@ export type PracticeBotSpeed = "slow" | "balanced" | "quick";
 export type CellValue = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export type Board = CellValue[][];
 export type Matrix = CellValue[][];
+export type GameMode = "classic" | "territory";
+export type TerritoryFormat = "bullet" | "blitz" | "rapid";
+export type TerritoryEntryEdge = "top" | "bottom" | "left" | "right";
+export type TerritoryPieceSource = "draft" | "hold";
+export type TerritoryWinner = PlayerSlot | "draw" | null;
+
+export interface TerritoryFormatConfig {
+  format: TerritoryFormat;
+  columns: number;
+  rows: number;
+  totalTurns: number;
+  turnTimerMs: number;
+  dominationTurns: number;
+}
+
+export interface TerritoryCell {
+  value: CellValue;
+  owner: PlayerSlot | null;
+  pieceId?: string;
+}
+
+export type TerritoryBoard = TerritoryCell[][];
+
+export interface TerritoryDraftPiece {
+  id: string;
+  type: TetrominoType;
+}
+
+export interface TerritoryDraftState {
+  pieces: TerritoryDraftPiece[];
+  bag: TetrominoType[];
+  bagIndex: number;
+  nextPieceId: number;
+  seed: number;
+}
+
+export interface TerritoryPlayerPublicState {
+  slot: PlayerSlot;
+  userId: string | null;
+  displayName: string;
+  connected: boolean;
+  hold: TetrominoType | null;
+}
+
+export interface TerritoryPlayerState extends TerritoryPlayerPublicState {
+  reconnectToken: string;
+}
+
+export interface TerritoryComponentSummary {
+  size: number;
+  cells: Array<{ x: number; y: number }>;
+}
+
+export interface TerritoryScoreSummary {
+  weighted: Record<PlayerSlot, number>;
+  raw: Record<PlayerSlot, number>;
+  components: Record<PlayerSlot, TerritoryComponentSummary[]>;
+  dominantSlot: PlayerSlot | null;
+  dominationStreakSlot: PlayerSlot | null;
+  dominationStreak: number;
+}
+
+export interface TerritoryClearSummary {
+  rows: number[];
+  columns: number[];
+  cells: Array<{ x: number; y: number }>;
+}
+
+export interface TerritoryLegalPlacement {
+  source: TerritoryPieceSource;
+  draftId?: string;
+  type: TetrominoType;
+  rotation: number;
+  edge: TerritoryEntryEdge;
+  lane: number;
+  x: number;
+  y: number;
+  cells: Array<{ x: number; y: number }>;
+}
+
+export interface TerritoryActivePiece {
+  source: TerritoryPieceSource;
+  draftId?: string;
+  type: TetrominoType;
+  rotation: number;
+  x: number;
+  y: number;
+  cells: Array<{ x: number; y: number }>;
+}
+
+export type TerritoryPreviewAction =
+  | {
+      kind: "select";
+      slot: PlayerSlot;
+      source: TerritoryPieceSource;
+      draftId?: string;
+    }
+  | {
+      kind: "input";
+      slot: PlayerSlot;
+      action: "moveLeft" | "moveRight" | "softDrop" | "rotateCW" | "rotateCCW";
+    };
+
+export interface TerritoryTurnState {
+  activeSlot: PlayerSlot;
+  turnNumber: number;
+  totalTurns: number;
+  turnStartedAt: number;
+  turnEndsAt: number;
+}
+
+export interface TerritoryRoomState {
+  id: string;
+  mode: "territory";
+  format: TerritoryFormat;
+  status: "waiting" | "playing" | "ended";
+  board: TerritoryBoard;
+  players: Record<PlayerSlot, TerritoryPlayerState>;
+  draft: TerritoryDraftState;
+  turn: TerritoryTurnState;
+  currentPreview: TerritoryActivePiece | null;
+  scores: TerritoryScoreSummary;
+  winner: TerritoryWinner;
+  winnerReason: "domination" | "territory-score" | "draw" | null;
+  lastClears: TerritoryClearSummary;
+  lastTerritoryGainSlot: PlayerSlot | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface TerritorySnapshot {
+  id: string;
+  mode: "territory";
+  format: TerritoryFormat;
+  status: TerritoryRoomState["status"];
+  board: TerritoryBoard;
+  players: Record<PlayerSlot, TerritoryPlayerPublicState>;
+  draft: TerritoryDraftPiece[];
+  turn: TerritoryTurnState;
+  currentPreview: TerritoryActivePiece | null;
+  scores: TerritoryScoreSummary;
+  winner: TerritoryWinner;
+  winnerReason: TerritoryRoomState["winnerReason"];
+  lastClears: TerritoryClearSummary;
+  legalPlacements: TerritoryLegalPlacement[];
+  canHold: boolean;
+  serverTime: number;
+}
+
+export type TerritoryTurnAction =
+  | {
+      kind: "place";
+      slot: PlayerSlot;
+      source: "draft";
+      draftId: string;
+      rotation: number;
+      edge: TerritoryEntryEdge;
+      lane: number;
+    }
+  | {
+      kind: "place";
+      slot: PlayerSlot;
+      source: "hold";
+      rotation: number;
+      edge: TerritoryEntryEdge;
+      lane: number;
+    }
+  | {
+      kind: "hold";
+      slot: PlayerSlot;
+      draftId: string;
+    }
+  | {
+      kind: "pass";
+      slot: PlayerSlot;
+      reason?: "timeout" | "no-legal-move" | "forfeit";
+    };
 
 export interface VisualCell {
   pieceId: string;
@@ -178,9 +355,16 @@ export interface SocialSummary {
 
 export interface ServerToClientEvents {
   authenticated: (payload: { user: AuthUser }) => void;
-  matchmakingQueued: (payload: { queueSize: number }) => void;
-  roomJoined: (payload: { roomId: string; slot: PlayerSlot; reconnectToken: string }) => void;
+  matchmakingQueued: (payload: { queueSize: number; mode?: GameMode; format?: TerritoryFormat }) => void;
+  roomJoined: (payload: {
+    roomId: string;
+    slot: PlayerSlot;
+    reconnectToken: string;
+    mode?: GameMode;
+    format?: TerritoryFormat;
+  }) => void;
   snapshot: (snapshot: RoomSnapshot) => void;
+  territorySnapshot: (snapshot: TerritorySnapshot) => void;
   socialUpdated: () => void;
   latency: (payload: { latencyMs: number; serverTime: number }) => void;
   serverError: (payload: { message: string }) => void;
@@ -191,8 +375,11 @@ export interface ClientToServerEvents {
   joinMatchmaking: () => void;
   joinPractice: (payload: { botSpeed: PracticeBotSpeed }) => void;
   joinFriend: (payload: { friendId: string }) => void;
+  joinTerritory: (payload: { format: TerritoryFormat }) => void;
   reconnectRoom: (payload: { roomId: string; reconnectToken: string }) => void;
   input: (input: ClientInput) => void;
+  territoryAction: (action: TerritoryTurnAction) => void;
+  territoryPreview: (preview: TerritoryPreviewAction) => void;
   pingCheck: (payload: { clientTime: number }) => void;
 }
 
