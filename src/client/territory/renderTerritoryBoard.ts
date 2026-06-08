@@ -1,10 +1,42 @@
 import type { PlayerSlot, TerritoryActivePiece, TerritoryLegalPlacement, TerritorySnapshot } from "../../shared/types";
+import {
+  connectedComponents,
+  groupByPieceId,
+  imageForSprite,
+  spriteLookupForCellsWithColor,
+  type ShapeCell,
+  type SpriteColorName,
+} from "../quattroSprites";
+
+export type TerritoryColorPreferences = Record<PlayerSlot, SpriteColorName>;
+
+const DEFAULT_TERRITORY_COLORS: TerritoryColorPreferences = {
+  A: "purple",
+  B: "cyan",
+};
+
+const SPRITE_COLOR_HEX: Record<SpriteColorName, { fill: string; edge: string }> = {
+  cyan: { fill: "#38a7b6", edge: "#c7f8ff" },
+  yellow: { fill: "#d6a92f", edge: "#fff0a8" },
+  purple: { fill: "#9d62c9", edge: "#f0d5ff" },
+  green: { fill: "#5eb657", edge: "#d8ffd2" },
+  red: { fill: "#d34b58", edge: "#ffd0d6" },
+  blue: { fill: "#4f7fda", edge: "#cbdcff" },
+  orange: { fill: "#db8135", edge: "#ffe0bc" },
+};
+
+interface TerritoryRenderCell extends ShapeCell {
+  owner: PlayerSlot;
+  pieceId: string;
+}
 
 export function renderTerritoryBoard(
   canvas: HTMLCanvasElement,
   snapshot: TerritorySnapshot | null,
   localSlot: PlayerSlot | null,
   preview: TerritoryActivePiece | null,
+  colorPreferences: TerritoryColorPreferences = DEFAULT_TERRITORY_COLORS,
+  clearEffectProgress = 1,
 ): void {
   const context = getCanvasContext(canvas);
   context.setTransform(1, 0, 0, 1, 0, 0);
@@ -38,24 +70,13 @@ export function renderTerritoryBoard(
   }
   context.restore();
 
-  snapshot.board.forEach((row, y) => {
-    row.forEach((cell, x) => {
-      if (!cell.owner || cell.value === 0) {
-        return;
-      }
-      drawTerritoryCell(context, x, y, blockSize, cell.owner, cell.owner === localSlot ? 0.96 : 0.74);
-    });
-  });
+  drawOwnedTerritoryCells(context, snapshot, localSlot, blockSize, colorPreferences);
 
   if (preview) {
     const ghost = projectedPlacement(snapshot.board, preview);
     const projectedClearCells = projectedClearSet(snapshot, ghost);
-    for (const cell of ghost.cells) {
-      drawTerritoryCell(context, cell.x, cell.y, blockSize, snapshot.turn.activeSlot, 0.22, true);
-    }
-    for (const cell of preview.cells) {
-      drawTerritoryCell(context, cell.x, cell.y, blockSize, snapshot.turn.activeSlot, 0.48, true);
-    }
+    drawTerritorySpriteComponent(context, ghost.cells, snapshot.turn.activeSlot, blockSize, 0.2, colorPreferences, true);
+    drawTerritorySpriteComponent(context, preview.cells, snapshot.turn.activeSlot, blockSize, 0.48, colorPreferences, true);
     context.save();
     context.fillStyle = "rgba(255, 239, 153, 0.28)";
     for (const key of projectedClearCells) {
@@ -65,8 +86,117 @@ export function renderTerritoryBoard(
     context.restore();
   }
 
+  drawLastClearEffect(context, snapshot, width, height, blockSize, clearEffectProgress);
+
+  drawLargestComponentOutline(context, snapshot, blockSize);
+  context.restore();
+}
+
+function drawOwnedTerritoryCells(
+  context: CanvasRenderingContext2D,
+  snapshot: TerritorySnapshot,
+  localSlot: PlayerSlot | null,
+  blockSize: number,
+  colorPreferences: TerritoryColorPreferences,
+): void {
+  const cells: TerritoryRenderCell[] = [];
+
+  snapshot.board.forEach((row, y) => {
+    row.forEach((cell, x) => {
+      if (!cell.owner || cell.value === 0) {
+        return;
+      }
+      cells.push({
+        x,
+        y,
+        owner: cell.owner,
+        pieceId: cell.pieceId ?? `${cell.owner}:${x}:${y}`,
+      });
+    });
+  });
+
+  for (const group of groupByPieceId(cells.map((cell) => ({ ...cell, visual: { pieceId: `${cell.owner}:${cell.pieceId}` } })))) {
+    const owner = group[0]?.owner;
+    if (!owner) {
+      continue;
+    }
+    const alpha = owner === localSlot ? 0.96 : 0.74;
+    for (const component of connectedComponents(group)) {
+      drawTerritorySpriteComponent(context, component, owner, blockSize, alpha, colorPreferences);
+    }
+  }
+}
+
+function drawTerritorySpriteComponent(
+  context: CanvasRenderingContext2D,
+  cells: ShapeCell[],
+  owner: PlayerSlot,
+  blockSize: number,
+  alpha: number,
+  colorPreferences: TerritoryColorPreferences,
+  preview = false,
+): boolean {
+  if (cells.length === 0) {
+    return false;
+  }
+
+  const colorName = colorPreferences[owner] ?? DEFAULT_TERRITORY_COLORS[owner];
+  const lookup = spriteLookupForCellsWithColor(cells, colorName);
+  if (lookup.path) {
+    const image = imageForSprite(lookup.path);
+    if (image?.complete && image.naturalWidth > 0) {
+      drawImageForCells(context, image, cells, alpha, blockSize, Math.max(1, Math.floor(blockSize * 0.06)));
+      return true;
+    }
+  }
+
+  for (const cell of cells) {
+    drawTerritoryCell(context, cell.x, cell.y, blockSize, owner, alpha, colorPreferences, preview);
+  }
+  return false;
+}
+
+function drawImageForCells(
+  context: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  cells: ShapeCell[],
+  alpha: number,
+  blockSize: number,
+  inset: number,
+): void {
+  const minX = Math.min(...cells.map((cell) => cell.x));
+  const maxX = Math.max(...cells.map((cell) => cell.x));
+  const minY = Math.min(...cells.map((cell) => cell.y));
+  const maxY = Math.max(...cells.map((cell) => cell.y));
+
   context.save();
-  context.strokeStyle = "rgba(255, 238, 155, 0.75)";
+  context.globalAlpha = alpha;
+  context.imageSmoothingEnabled = false;
+  context.drawImage(
+    image,
+    minX * blockSize + inset,
+    minY * blockSize + inset,
+    (maxX - minX + 1) * blockSize - inset * 2,
+    (maxY - minY + 1) * blockSize - inset * 2,
+  );
+  context.restore();
+}
+
+function drawLastClearEffect(
+  context: CanvasRenderingContext2D,
+  snapshot: TerritorySnapshot,
+  width: number,
+  height: number,
+  blockSize: number,
+  progress: number,
+): void {
+  if (progress >= 1) {
+    return;
+  }
+
+  const alpha = Math.max(0, 1 - progress);
+  context.save();
+  context.strokeStyle = `rgba(255, 238, 155, ${0.75 * alpha})`;
   context.lineWidth = Math.max(2, Math.floor(blockSize * 0.08));
   for (const row of snapshot.lastClears.rows) {
     context.strokeRect(0, row * blockSize, width, blockSize);
@@ -74,9 +204,6 @@ export function renderTerritoryBoard(
   for (const column of snapshot.lastClears.columns) {
     context.strokeRect(column * blockSize, 0, blockSize, height);
   }
-  context.restore();
-
-  drawLargestComponentOutline(context, snapshot, blockSize);
   context.restore();
 }
 
@@ -117,9 +244,11 @@ function drawTerritoryCell(
   blockSize: number,
   owner: PlayerSlot,
   alpha: number,
+  colorPreferences: TerritoryColorPreferences,
   preview = false,
 ): void {
-  const palette = owner === "A" ? { fill: "#c04482", edge: "#ffe08a" } : { fill: "#38a7b6", edge: "#c7f8ff" };
+  const colorName = colorPreferences[owner] ?? DEFAULT_TERRITORY_COLORS[owner];
+  const palette = SPRITE_COLOR_HEX[colorName];
   const inset = Math.max(1, Math.floor(blockSize * 0.09));
   context.save();
   context.globalAlpha = alpha;

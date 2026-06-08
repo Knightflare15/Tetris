@@ -4,6 +4,7 @@ import {
   groupByPieceId,
   normalizeShapeKey,
   spriteLookupForCells,
+  spriteLookupForCellsWithColor,
 } from "../src/client/quattroSprites";
 
 describe("Quattro sprite shape helpers", () => {
@@ -35,6 +36,11 @@ describe("Quattro sprite shape helpers", () => {
       shapeAlias: "Z",
       colorName: "red",
       path: "/assets/quattro/sprites/4Block/Z_block_red.png",
+    });
+
+    expect(spriteLookupForCellsWithColor([{ x: 4, y: 8 }], "orange")).toMatchObject({
+      colorName: "orange",
+      path: "/assets/quattro/sprites/1Block/I_block_orange.png",
     });
   });
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import type {
   TerritoryActivePiece,
   TerritoryPreviewAction,
@@ -7,8 +7,24 @@ import type {
   TetrominoType,
 } from "../../shared/types";
 import { BOARD_CANVAS_HEIGHT, BOARD_CANVAS_WIDTH, renderHold } from "../gameRenderer";
-import { renderTerritoryBoard } from "./renderTerritoryBoard";
+import { QUATTRO_SPRITE_LOAD_EVENT, type SpriteColorName } from "../quattroSprites";
+import { renderTerritoryBoard, type TerritoryColorPreferences } from "./renderTerritoryBoard";
 import { useHiDpiCanvas } from "../shared/useHiDpiCanvas";
+
+const TERRITORY_COLOR_STORAGE_KEY = "brix:territory-colors";
+const SPRITE_COLOR_OPTIONS: Array<{ value: SpriteColorName; label: string }> = [
+  { value: "purple", label: "Purple" },
+  { value: "cyan", label: "Cyan" },
+  { value: "red", label: "Red" },
+  { value: "blue", label: "Blue" },
+  { value: "green", label: "Green" },
+  { value: "yellow", label: "Yellow" },
+  { value: "orange", label: "Orange" },
+];
+const DEFAULT_LOCAL_COLORS: TerritoryColorPreferences = {
+  A: "purple",
+  B: "cyan",
+};
 
 export function TerritoryLayout({
   snapshot,
@@ -28,6 +44,7 @@ export function TerritoryLayout({
   onPreview: (preview: TerritoryPreviewAction) => void;
 }): ReactElement {
   const [now, setNow] = useState(Date.now());
+  const [colorPreferences, setColorPreferences] = useState<TerritoryColorPreferences>(() => loadTerritoryColors());
 
   const isActive = Boolean(localSlot && snapshot.turn.activeSlot === localSlot && snapshot.status === "playing");
   const currentPlayer = localSlot ? snapshot.players[localSlot] : null;
@@ -39,6 +56,10 @@ export function TerritoryLayout({
   const activePreview = snapshot.currentPreview;
   const selectedDraftId = activePreview?.source === "draft" ? activePreview.draftId ?? "" : "";
   const selectedSource = activePreview?.source ?? "draft";
+  const colorAssignments = useMemo(
+    () => localColorAssignments(localSlot, colorPreferences),
+    [colorPreferences, localSlot],
+  );
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 250);
@@ -161,10 +182,32 @@ export function TerritoryLayout({
           <StatRow label="Dominant" value={snapshot.scores.dominantSlot ?? "-"} />
           <StatRow label="Streak" value={snapshot.scores.dominationStreak ? `${snapshot.scores.dominationStreakSlot} x${snapshot.scores.dominationStreak}` : "-"} />
         </section>
+
+        <section className="cellar-card match-card territory-color-card">
+          <p className="eyebrow">Cat colors</p>
+          <TerritoryColorSelect
+            label="You"
+            value={colorAssignments.you}
+            onChange={(value) => {
+              const next = colorsForLocalLabels(localSlot, colorAssignments.enemy, value);
+              setColorPreferences(next);
+              saveTerritoryColors(next);
+            }}
+          />
+          <TerritoryColorSelect
+            label="Rival"
+            value={colorAssignments.enemy}
+            onChange={(value) => {
+              const next = colorsForLocalLabels(localSlot, value, colorAssignments.you);
+              setColorPreferences(next);
+              saveTerritoryColors(next);
+            }}
+          />
+        </section>
       </aside>
 
       <section className="board-column territory-board-column">
-        <TerritoryBoardCanvas snapshot={snapshot} localSlot={localSlot} preview={snapshot.currentPreview} />
+        <TerritoryBoardCanvas snapshot={snapshot} localSlot={localSlot} preview={snapshot.currentPreview} colorPreferences={colorPreferences} />
       </section>
 
       <aside className="side-rail right-rail territory-right-rail">
@@ -225,18 +268,23 @@ function TerritoryBoardCanvas({
   snapshot,
   localSlot,
   preview,
+  colorPreferences,
 }: {
   snapshot: TerritorySnapshot;
   localSlot: "A" | "B" | null;
   preview: TerritoryActivePiece | null;
+  colorPreferences: TerritoryColorPreferences;
 }): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const playfieldRef = useRef<HTMLDivElement | null>(null);
   const redrawRef = useRef(() => {});
+  const lastClearSignatureRef = useRef(clearSignature(snapshot));
+  const clearEffectStartRef = useRef<number | null>(null);
+  const [clearEffectProgress, setClearEffectProgress] = useState(1);
 
   redrawRef.current = () => {
     if (canvasRef.current) {
-      renderTerritoryBoard(canvasRef.current, snapshot, localSlot, preview);
+      renderTerritoryBoard(canvasRef.current, snapshot, localSlot, preview, colorPreferences, clearEffectProgress);
     }
   };
 
@@ -294,8 +342,60 @@ function TerritoryBoardCanvas({
   }, []);
 
   useEffect(() => {
+    const redraw = () => redrawRef.current();
+    window.addEventListener(QUATTRO_SPRITE_LOAD_EVENT, redraw);
+    return () => window.removeEventListener(QUATTRO_SPRITE_LOAD_EVENT, redraw);
+  }, []);
+
+  useEffect(() => {
+    const nextSignature = clearSignature(snapshot);
+    if (nextSignature === lastClearSignatureRef.current) {
+      return;
+    }
+
+    lastClearSignatureRef.current = nextSignature;
+    if (nextSignature === "none") {
+      clearEffectStartRef.current = null;
+      setClearEffectProgress(1);
+      return;
+    }
+
+    clearEffectStartRef.current = performance.now();
+    setClearEffectProgress(0);
+  }, [snapshot]);
+
+  useEffect(() => {
+    if (clearEffectProgress >= 1 || clearEffectStartRef.current === null) {
+      return;
+    }
+
+    const clearDurationMs = 360;
+    let frameId: number | null = null;
+    const animate = (frameNow: number) => {
+      const startedAt = clearEffectStartRef.current;
+      if (startedAt === null) {
+        return;
+      }
+      const nextProgress = Math.min(1, (frameNow - startedAt) / clearDurationMs);
+      setClearEffectProgress(nextProgress);
+      if (nextProgress < 1) {
+        frameId = window.requestAnimationFrame(animate);
+      } else {
+        clearEffectStartRef.current = null;
+      }
+    };
+
+    frameId = window.requestAnimationFrame(animate);
+    return () => {
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId);
+      }
+    };
+  }, [clearEffectProgress]);
+
+  useEffect(() => {
     redrawRef.current();
-  }, [snapshot, localSlot, preview]);
+  }, [snapshot, localSlot, preview, colorPreferences, clearEffectProgress]);
 
   return (
     <section className="board-frame territory-board-frame" aria-label="Territory board">
@@ -303,6 +403,30 @@ function TerritoryBoardCanvas({
         <canvas ref={canvasRef} width={BOARD_CANVAS_WIDTH} height={BOARD_CANVAS_HEIGHT} />
       </div>
     </section>
+  );
+}
+
+function TerritoryColorSelect({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: SpriteColorName;
+  onChange: (value: SpriteColorName) => void;
+}): ReactElement {
+  return (
+    <label className="territory-color-select">
+      <span>{label}</span>
+      <span className={`territory-color-swatch is-${value}`} aria-hidden="true" />
+      <select value={value} onChange={(event) => onChange(event.target.value as SpriteColorName)}>
+        {SPRITE_COLOR_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -365,4 +489,62 @@ function coverageLabel(raw: number, boardCellCount: number): string {
 
 function short(value: string): string {
   return value.slice(0, 8);
+}
+
+function loadTerritoryColors(): TerritoryColorPreferences {
+  if (typeof window === "undefined") {
+    return DEFAULT_LOCAL_COLORS;
+  }
+
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(TERRITORY_COLOR_STORAGE_KEY) ?? "null") as Partial<TerritoryColorPreferences> | null;
+    return {
+      A: isSpriteColorName(parsed?.A) ? parsed.A : DEFAULT_LOCAL_COLORS.A,
+      B: isSpriteColorName(parsed?.B) ? parsed.B : DEFAULT_LOCAL_COLORS.B,
+    };
+  } catch {
+    return DEFAULT_LOCAL_COLORS;
+  }
+}
+
+function saveTerritoryColors(colors: TerritoryColorPreferences): void {
+  try {
+    window.localStorage.setItem(TERRITORY_COLOR_STORAGE_KEY, JSON.stringify(colors));
+  } catch {
+    // Local preferences are best-effort only.
+  }
+}
+
+function isSpriteColorName(value: unknown): value is SpriteColorName {
+  return SPRITE_COLOR_OPTIONS.some((option) => option.value === value);
+}
+
+function localColorAssignments(
+  localSlot: "A" | "B" | null,
+  colors: TerritoryColorPreferences,
+): { you: SpriteColorName; enemy: SpriteColorName } {
+  if (localSlot === "B") {
+    return { you: colors.B, enemy: colors.A };
+  }
+  return { you: colors.A, enemy: colors.B };
+}
+
+function colorsForLocalLabels(
+  localSlot: "A" | "B" | null,
+  enemyColor: SpriteColorName,
+  youColor: SpriteColorName,
+): TerritoryColorPreferences {
+  if (localSlot === "B") {
+    return { A: enemyColor, B: youColor };
+  }
+  return { A: youColor, B: enemyColor };
+}
+
+function clearSignature(snapshot: TerritorySnapshot): string {
+  const rows = snapshot.lastClears.rows.join(",");
+  const columns = snapshot.lastClears.columns.join(",");
+  if (!rows && !columns) {
+    return "none";
+  }
+  return `${snapshot.turn.turnNumber}:${rows}|${columns}`;
 }

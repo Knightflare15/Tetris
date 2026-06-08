@@ -9,7 +9,7 @@ export interface SpriteLookup {
   blockCount: number;
   shapeKey: string;
   shapeAlias: string | null;
-  colorName: string;
+  colorName: SpriteColorName;
   path: string | null;
 }
 
@@ -19,8 +19,9 @@ export interface PieceVisual {
 
 const SPRITE_ROOT = "/assets/quattro/sprites";
 export const QUATTRO_SPRITE_LOAD_EVENT = "quattro-sprite-load";
+export type SpriteColorName = "cyan" | "yellow" | "purple" | "green" | "red" | "blue" | "orange";
 
-const VALUE_COLORS: Record<Exclude<CellValue, 0>, string> = {
+const VALUE_COLORS: Record<Exclude<CellValue, 0>, SpriteColorName> = {
   1: "cyan",
   2: "yellow",
   3: "purple",
@@ -30,7 +31,7 @@ const VALUE_COLORS: Record<Exclude<CellValue, 0>, string> = {
   7: "orange",
 };
 
-export const TYPE_COLORS: Record<TetrominoType, string> = {
+export const TYPE_COLORS: Record<TetrominoType, SpriteColorName> = {
   I: "cyan",
   O: "yellow",
   T: "purple",
@@ -141,10 +142,13 @@ export function normalizeShapeKey(cells: ShapeCell[]): string {
 }
 
 export function spriteLookupForCells(cells: ShapeCell[], value: CellValue): SpriteLookup {
+  return spriteLookupForCellsWithColor(cells, colorForValue(value));
+}
+
+export function spriteLookupForCellsWithColor(cells: ShapeCell[], colorName: SpriteColorName): SpriteLookup {
   const blockCount = cells.length;
   const shapeKey = normalizeShapeKey(cells);
   const shapeAlias = SHAPE_ALIASES[shapeKey] ?? null;
-  const colorName = colorForValue(value);
   return {
     blockCount,
     shapeKey,
@@ -184,7 +188,7 @@ export function imageForSprite(path: string): HTMLImageElement | null {
   return image;
 }
 
-function colorForValue(value: CellValue): string {
+function colorForValue(value: CellValue): SpriteColorName {
   if (value === 0) {
     return "cyan";
   }

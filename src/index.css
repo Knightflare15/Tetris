@@ -675,6 +675,65 @@ canvas {
   gap: 7px;
 }
 
+.territory-color-card {
+  display: grid;
+  gap: 7px;
+}
+
+.territory-color-select {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px minmax(84px, 1.45fr);
+  align-items: center;
+  gap: 7px;
+  color: #6f3045;
+  font-size: var(--body-copy);
+  font-weight: 900;
+}
+
+.territory-color-select select {
+  min-width: 0;
+  padding: 6px 22px 6px 7px;
+  font-size: var(--small-copy);
+}
+
+.territory-color-swatch {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--pixel-outline);
+  border-radius: 6px;
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.48),
+    0 2px 0 rgba(73, 39, 24, 0.18);
+}
+
+.territory-color-swatch.is-cyan {
+  background: #38a7b6;
+}
+
+.territory-color-swatch.is-yellow {
+  background: #d6a92f;
+}
+
+.territory-color-swatch.is-purple {
+  background: #9d62c9;
+}
+
+.territory-color-swatch.is-green {
+  background: #5eb657;
+}
+
+.territory-color-swatch.is-red {
+  background: #d34b58;
+}
+
+.territory-color-swatch.is-blue {
+  background: #4f7fda;
+}
+
+.territory-color-swatch.is-orange {
+  background: #db8135;
+}
+
 .territory-draft-card,
 .territory-hold-card {
   display: grid;
