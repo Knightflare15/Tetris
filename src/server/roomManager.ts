@@ -3,6 +3,7 @@ import type {
   AuthUser,
   PlayerGameState,
   PracticeBotSpeed,
+  TerritoryMatchResult,
   TerritoryFormat,
   TerritoryPlayerState,
   TerritoryPreviewAction,
@@ -27,6 +28,7 @@ export class RoomManager {
       level: number,
       lines: number,
       mode: string,
+      territoryResult?: TerritoryMatchResult,
     ) => void,
   ) {
     this.classicRooms = new ClassicRoomService(io, disconnectGraceMs, onMatchEnded);

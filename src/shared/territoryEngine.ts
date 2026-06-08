@@ -567,6 +567,12 @@ function applyPlacement(state: TerritoryRoomState, placement: TerritoryLegalPlac
   state.lastTerritoryGainSlot = slot;
 }
 
+function isPlacementInsideBoard(board: TerritoryBoard, placement: TerritoryLegalPlacement): boolean {
+  const rows = board.length;
+  const columns = board[0]?.length ?? 0;
+  return placement.cells.every((cell) => cell.x >= 0 && cell.x < columns && cell.y >= 0 && cell.y < rows);
+}
+
 function findFullLines(board: TerritoryBoard): { rows: number[]; columns: number[] } {
   const rows = board
     .map((row, index) => ({ index, full: row.every((cell) => cell.value !== 0) }))
@@ -594,31 +600,36 @@ function collapseHorizontal(board: TerritoryBoard, clearedRows: number[]): Terri
   return [...emptyRows, ...remaining];
 }
 
-function collapseVertical(board: TerritoryBoard, clearedColumns: number[]): TerritoryBoard {
-  if (clearedColumns.length === 0) {
-    return board;
+function settleAirborneBlocks(board: TerritoryBoard): TerritoryBoard {
+  const rows = board.length;
+  const columns = board[0]?.length ?? 0;
+  const nextBoard = createBoard(rows, columns);
+
+  for (let x = 0; x < columns; x++) {
+    const fallingCells: TerritoryCell[] = [];
+    for (let y = rows - 1; y >= 0; y--) {
+      const cell = board[y]?.[x];
+      if (cell?.value) {
+        fallingCells.push({ ...cell });
+      }
+    }
+
+    for (let index = 0; index < fallingCells.length; index++) {
+      nextBoard[rows - 1 - index]![x] = fallingCells[index]!;
+    }
   }
 
-  const columns = board[0]?.length ?? 0;
-  const midpoint = Math.floor(columns / 2);
-  return board.map((row) => {
-    const nextRow = Array.from({ length: columns }, emptyCell);
-    const leftCells = row.slice(0, midpoint).filter((cell) => cell.value !== 0);
-    const rightCells = row.slice(midpoint).filter((cell) => cell.value !== 0);
-    const leftStart = Math.max(0, midpoint - leftCells.length);
-    for (let index = 0; index < leftCells.length; index++) {
-      nextRow[leftStart + index] = { ...leftCells[index]! };
-    }
-    for (let index = 0; index < rightCells.length; index++) {
-      nextRow[midpoint + index] = { ...rightCells[index]! };
-    }
-    return nextRow;
-  });
+  return nextBoard;
 }
 
 function resolveClears(state: TerritoryRoomState): void {
   const { rows, columns } = findFullLines(state.board);
   const clearCells: Array<{ x: number; y: number }> = [];
+  if (rows.length === 0 && columns.length === 0) {
+    state.lastClears = emptyClears();
+    return;
+  }
+
   const rowSet = new Set(rows);
   const columnSet = new Set(columns);
   for (let y = 0; y < state.board.length; y++) {
@@ -631,7 +642,7 @@ function resolveClears(state: TerritoryRoomState): void {
   }
 
   state.lastClears = { rows, columns, cells: clearCells };
-  state.board = collapseVertical(collapseHorizontal(state.board, rows), columns);
+  state.board = settleAirborneBlocks(collapseHorizontal(state.board, rows));
 }
 
 export function scoreTerritoryBoard(board: TerritoryBoard): TerritoryScoreSummary {
@@ -932,7 +943,18 @@ export function resolveTerritoryTurn(
     return { accepted: false, message: "Draft selection is out of sync.", snapshot: snapshotTerritoryRoom(state, now) };
   }
 
-  const placement = projectActivePiece(state.board, preview);
+  const placement = findDropPlacement(
+    state.board,
+    action.source,
+    preview.type,
+    action.rotation,
+    action.edge,
+    action.lane,
+    action.source === "draft" ? action.draftId : undefined,
+  );
+  if (!placement || !isPlacementInsideBoard(state.board, placement)) {
+    return { accepted: false, message: "Placement is not legal.", snapshot: snapshotTerritoryRoom(state, now) };
+  }
 
   applyPlacement(state, placement, action.slot);
   if (action.source === "draft") {

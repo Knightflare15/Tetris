@@ -220,6 +220,7 @@ app.post("/auth/register", async (req, res) => {
         email: pending.email,
         displayName: pending.displayName,
         passwordHash: pending.passwordHash,
+        territoryRating: { create: {} },
       },
       select: { id: true, displayName: true },
     });
@@ -277,6 +278,7 @@ app.post("/auth/login", async (req, res) => {
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
     });
+    await socialService.ensureTerritoryRating(user.id);
 
     const token = authService.createToken({ userId: user.id, displayName: user.displayName });
     res.json({ token, user: { userId: user.id, displayName: user.displayName } });
@@ -369,7 +371,9 @@ app.get("/auth/me", (req, res) => {
   }
 
   try {
-    res.json({ user: authService.verifyToken(token) });
+    const user = authService.verifyToken(token);
+    void socialService.ensureTerritoryRating(user.userId);
+    res.json({ user });
   } catch {
     res.status(401).json({ message: "Invalid token." });
   }
@@ -439,7 +443,11 @@ app.get("*", (_req, res) => {
   res.sendFile(path.join(publicDir, "index.html"));
 });
 
-const roomManager = new RoomManager(io, config.disconnectGraceMs, (roomId, playerIds, score, level, lines, mode) => {
+const roomManager = new RoomManager(io, config.disconnectGraceMs, (roomId, playerIds, score, level, lines, mode, territoryResult) => {
+  if (territoryResult) {
+    void socialService.recordTerritoryMatch(roomId, territoryResult);
+    return;
+  }
   void socialService.recordMatch(roomId, playerIds, score, level, lines, mode);
 });
 socialService = new SocialService(io, roomManager);
@@ -595,6 +603,7 @@ async function findOrCreateOidcUser(profile: OidcUserProfile): Promise<{ id: str
         },
       },
     });
+    await socialService.ensureTerritoryRating(existingAccount.user.id);
     return {
       id: existingAccount.user.id,
       displayName: normalizeDisplayName(profile.displayName),
@@ -602,7 +611,7 @@ async function findOrCreateOidcUser(profile: OidcUserProfile): Promise<{ id: str
   }
 
   const now = new Date();
-  return getPrisma().$transaction(async (tx) => {
+  const user = await getPrisma().$transaction(async (tx) => {
     let user = await tx.user.findUnique({
       where: { email: profile.email },
       select: { id: true, displayName: true },
@@ -615,6 +624,7 @@ async function findOrCreateOidcUser(profile: OidcUserProfile): Promise<{ id: str
           email: profile.email,
           displayName: normalizeDisplayName(profile.displayName),
           lastLoginAt: now,
+          territoryRating: { create: {} },
         },
         select: { id: true, displayName: true },
       });
@@ -643,6 +653,8 @@ async function findOrCreateOidcUser(profile: OidcUserProfile): Promise<{ id: str
 
     return user;
   });
+  await socialService.ensureTerritoryRating(user.id);
+  return user;
 }
 
 async function createUniqueUsername(tx: Prisma.TransactionClient, candidate: string): Promise<string> {

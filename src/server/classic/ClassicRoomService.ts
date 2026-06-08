@@ -16,6 +16,7 @@ import {
   type PracticeBotSpeed,
   type QueuedInput,
   type RoomState,
+  type TerritoryMatchResult,
 } from "../../shared/types";
 import { createBotRuntime, nextBotAction, type BotRuntime } from "../botPlayer";
 import { logger } from "../logger";
@@ -43,6 +44,7 @@ export class ClassicRoomService {
       level: number,
       lines: number,
       mode: string,
+      territoryResult?: TerritoryMatchResult,
     ) => void,
   ) {}
 

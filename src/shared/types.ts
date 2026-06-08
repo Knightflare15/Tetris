@@ -161,6 +161,13 @@ export interface TerritorySnapshot {
   serverTime: number;
 }
 
+export interface TerritoryMatchResult {
+  format: TerritoryFormat;
+  winner: TerritoryWinner;
+  winnerReason: TerritoryRoomState["winnerReason"];
+  players: Record<PlayerSlot, { userId: string | null; score: number }>;
+}
+
 export type TerritoryTurnAction =
   | {
       kind: "place";

@@ -7,6 +7,7 @@ import type {
   LeaderboardEntry,
   ServerToClientEvents,
   SocialSummary,
+  TerritoryMatchResult,
 } from "../shared/types";
 import { getPrisma, isDatabaseConfigured } from "./database";
 import { logger } from "./logger";
@@ -19,6 +20,9 @@ interface OnlineUser {
   user: AuthUser;
   sockets: Set<string>;
 }
+
+const TERRITORY_DEFAULT_ELO = 1200;
+const TERRITORY_ELO_K_FACTOR = 32;
 
 export class SocialService {
   private readonly onlineUsers = new Map<string, OnlineUser>();
@@ -142,11 +146,30 @@ export class SocialService {
     return this.areFriends(firstId, secondId);
   }
 
+  async ensureTerritoryRating(userId: string): Promise<void> {
+    if (!isDatabaseConfigured() || !isAccountUserId(userId)) {
+      return;
+    }
+
+    try {
+      await getPrisma().territoryRating.upsert({
+        where: { userId },
+        create: { userId },
+        update: {},
+      });
+    } catch (error) {
+      logger.warn({ error, userId }, "territory rating initialization skipped");
+    }
+  }
+
   async recordMatch(roomId: string, playerIds: string[], score: number, level: number, lines: number, mode: string): Promise<void> {
     if (!isDatabaseConfigured()) {
       return;
     }
-    const accountPlayerIds = playerIds.filter((id) => !id.startsWith("demo-") && !id.startsWith("bot-"));
+    if (mode.startsWith("territory-")) {
+      return;
+    }
+    const accountPlayerIds = playerIds.filter(isAccountUserId);
     if (!accountPlayerIds.length) {
       return;
     }
@@ -189,6 +212,113 @@ export class SocialService {
       logger.warn({ error, roomId }, "match persistence skipped");
     } finally {
       await this.notifyUsers(accountPlayerIds);
+    }
+  }
+
+  async recordTerritoryMatch(roomId: string, result: TerritoryMatchResult): Promise<void> {
+    if (!isDatabaseConfigured()) {
+      return;
+    }
+
+    const accountPlayers = (["A", "B"] as const)
+      .map((slot) => ({ slot, ...result.players[slot] }))
+      .filter((player): player is { slot: "A" | "B"; userId: string; score: number } =>
+        Boolean(player.userId && isAccountUserId(player.userId)),
+      );
+    if (!accountPlayers.length) {
+      return;
+    }
+
+    const mode = `territory-${result.format}`;
+    try {
+      await getPrisma().$transaction(async (tx) => {
+        const match = await tx.match.upsert({
+          where: { roomId },
+          create: {
+            roomId,
+            mode,
+            status: "ended",
+            score: Math.max(result.players.A.score, result.players.B.score),
+            level: 0,
+            lines: 0,
+            endedAt: new Date(),
+          },
+          update: {
+            status: "ended",
+            score: Math.max(result.players.A.score, result.players.B.score),
+            level: 0,
+            lines: 0,
+            endedAt: new Date(),
+          },
+        });
+
+        for (const player of accountPlayers) {
+          await tx.matchPlayer.upsert({
+            where: { matchId_userId: { matchId: match.id, userId: player.userId } },
+            create: {
+              matchId: match.id,
+              userId: player.userId,
+              slot: player.slot,
+              finalScore: player.score,
+              finalLevel: 0,
+              finalLines: 0,
+            },
+            update: {
+              slot: player.slot,
+              finalScore: player.score,
+              finalLevel: 0,
+              finalLines: 0,
+            },
+          });
+          await tx.territoryRating.upsert({
+            where: { userId: player.userId },
+            create: { userId: player.userId },
+            update: {},
+          });
+        }
+
+        const playerAId = result.players.A.userId;
+        const playerBId = result.players.B.userId;
+        if (!isAccountUserId(playerAId) || !isAccountUserId(playerBId)) {
+          return;
+        }
+
+        const ratings = await tx.territoryRating.findMany({
+          where: { userId: { in: [playerAId, playerBId] } },
+          select: { userId: true, rating: true },
+        });
+        const ratingByUserId = new Map(ratings.map((rating) => [rating.userId, rating.rating]));
+        const ratingA = ratingByUserId.get(playerAId) ?? TERRITORY_DEFAULT_ELO;
+        const ratingB = ratingByUserId.get(playerBId) ?? TERRITORY_DEFAULT_ELO;
+        const { nextA, nextB } = calculateTerritoryElo(ratingA, ratingB, result.winner);
+
+        await Promise.all([
+          tx.territoryRating.update({
+            where: { userId: playerAId },
+            data: {
+              rating: nextA,
+              gamesPlayed: { increment: 1 },
+              wins: result.winner === "A" ? { increment: 1 } : undefined,
+              losses: result.winner === "B" ? { increment: 1 } : undefined,
+              draws: isTerritoryDraw(result.winner) ? { increment: 1 } : undefined,
+            },
+          }),
+          tx.territoryRating.update({
+            where: { userId: playerBId },
+            data: {
+              rating: nextB,
+              gamesPlayed: { increment: 1 },
+              wins: result.winner === "B" ? { increment: 1 } : undefined,
+              losses: result.winner === "A" ? { increment: 1 } : undefined,
+              draws: isTerritoryDraw(result.winner) ? { increment: 1 } : undefined,
+            },
+          }),
+        ]);
+      });
+    } catch (error) {
+      logger.warn({ error, roomId }, "territory match persistence skipped");
+    } finally {
+      await this.notifyUsers(accountPlayers.map((player) => player.userId));
     }
   }
 
@@ -317,6 +447,30 @@ function requestSummary(
 
 function orderedPair(firstId: string, secondId: string): [string, string] {
   return firstId < secondId ? [firstId, secondId] : [secondId, firstId];
+}
+
+export function calculateTerritoryElo(
+  ratingA: number,
+  ratingB: number,
+  winner: TerritoryMatchResult["winner"],
+): { nextA: number; nextB: number } {
+  const scoreA = winner === "A" ? 1 : winner === "B" ? 0 : 0.5;
+  const scoreB = 1 - scoreA;
+  const expectedA = 1 / (1 + 10 ** ((ratingB - ratingA) / 400));
+  const expectedB = 1 / (1 + 10 ** ((ratingA - ratingB) / 400));
+
+  return {
+    nextA: Math.round(ratingA + TERRITORY_ELO_K_FACTOR * (scoreA - expectedA)),
+    nextB: Math.round(ratingB + TERRITORY_ELO_K_FACTOR * (scoreB - expectedB)),
+  };
+}
+
+function isAccountUserId(userId: string | null | undefined): userId is string {
+  return Boolean(userId && !userId.startsWith("demo-") && !userId.startsWith("bot-"));
+}
+
+function isTerritoryDraw(winner: TerritoryMatchResult["winner"]): boolean {
+  return winner !== "A" && winner !== "B";
 }
 
 function normalizeUsername(value: unknown): string {

@@ -26,6 +26,7 @@ model User {
   friendshipsB      Friendship[]      @relation("FriendshipUserB")
   matchPlayers      MatchPlayer[]
   leaderboardScores LeaderboardScore[]
+  territoryRating   TerritoryRating?
   recentTeammates   RecentTeammate[]  @relation("RecentTeammateUser")
   recentForUsers    RecentTeammate[]  @relation("RecentTeammateOther")
 }
@@ -135,6 +136,22 @@ model LeaderboardScore {
 
   @@index([mode, score])
   @@index([userId])
+}
+
+model TerritoryRating {
+  id          String   @id @default(uuid())
+  rating      Int      @default(1200)
+  gamesPlayed Int      @default(0)
+  wins        Int      @default(0)
+  losses      Int      @default(0)
+  draws       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([rating])
 }
 
 model RecentTeammate {

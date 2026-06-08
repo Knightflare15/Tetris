@@ -13,6 +13,7 @@ import {
   type AuthUser,
   type PlayerSlot,
   type TerritoryFormat,
+  type TerritoryMatchResult,
   type TerritoryPlayerState,
   type TerritoryPreviewAction,
   type TerritoryRoomState,
@@ -41,6 +42,7 @@ export class TerritoryRoomService {
       level: number,
       lines: number,
       mode: string,
+      territoryResult?: TerritoryMatchResult,
     ) => void,
   ) {}
 
@@ -201,6 +203,15 @@ export class TerritoryRoomService {
       0,
       0,
       `territory-${room.state.format}`,
+      {
+        format: room.state.format,
+        winner: room.state.winner,
+        winnerReason: room.state.winnerReason,
+        players: {
+          A: { userId: room.state.players.A.userId, score: room.state.scores.weighted.A },
+          B: { userId: room.state.players.B.userId, score: room.state.scores.weighted.B },
+        },
+      },
     );
     setTimeout(() => this.destroyRoom(roomId), 5000);
   }

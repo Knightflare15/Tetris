@@ -92,6 +92,33 @@ describe("territory engine", () => {
     expect(placements.some((placement) => placement.lane === 2)).toBe(true);
   });
 
+  it("rejects stale blocked previews without writing off the board", () => {
+    const state = room();
+    state.draft.pieces = [{ id: "draft-o", type: "O" }];
+    updateTerritoryPreview(state, { kind: "select", slot: "A", source: "draft", draftId: "draft-o" });
+    const preview = state.currentPreview;
+    expect(preview).toBeTruthy();
+    for (const cell of preview!.cells) {
+      if (cell.y + 2 >= 0) {
+        state.board[cell.y + 2]![cell.x] = { value: 1, owner: "B" };
+      }
+    }
+
+    const result = resolveTerritoryTurn(state, {
+      kind: "place",
+      slot: "A",
+      source: "draft",
+      draftId: "draft-o",
+      rotation: preview!.rotation,
+      edge: "top",
+      lane: preview!.x,
+    }, 2000);
+
+    expect(result.accepted).toBe(false);
+    expect(result.message).toBe("Placement is not legal.");
+    expect(state.turn.activeSlot).toBe("A");
+  });
+
   it("spends a whole turn on empty hold and later places the held piece", () => {
     const state = room();
     const heldType = state.draft.pieces[0]!.type;
@@ -138,6 +165,8 @@ describe("territory engine", () => {
     const state = room();
     state.draft.pieces = [{ id: "draft-i", type: "I" }];
     const bottomRow = state.board.length - 1;
+    const floatingRow = bottomRow - 3;
+    state.board[floatingRow]![0] = { value: 1, owner: "B", pieceId: "floating-b" };
     for (let x = 0; x < 8; x++) {
       state.board[bottomRow]![x] = { value: 1, owner: "B" };
     }
@@ -159,7 +188,41 @@ describe("territory engine", () => {
 
     expect(result.accepted).toBe(true);
     expect(state.lastClears.rows).toContain(bottomRow);
-    expect(scoreTerritoryBoard(state.board).raw.B).toBe(0);
+    expect(scoreTerritoryBoard(state.board).raw.B).toBe(1);
+    expect(state.board[floatingRow]![0].value).toBe(0);
+    expect(state.board[bottomRow]![0]).toMatchObject({ value: 1, owner: "B", pieceId: "floating-b" });
+  });
+
+  it("clears vertical columns without shifting surviving stacks sideways", () => {
+    const state = room();
+    state.draft.pieces = [{ id: "draft-i", type: "I" }];
+    updateTerritoryPreview(state, { kind: "select", slot: "A", source: "draft", draftId: "draft-i" });
+    updateTerritoryPreview(state, { kind: "input", slot: "A", action: "rotateCW" });
+    const preview = state.currentPreview;
+    expect(preview).toBeTruthy();
+    const clearColumn = preview!.x;
+    const bottomRow = state.board.length - 1;
+    for (let y = 4; y < state.board.length; y++) {
+      state.board[y]![clearColumn] = { value: 1, owner: "B", pieceId: `column-${y}` };
+    }
+    state.board[7]![1] = { value: 2, owner: "A", pieceId: "left-sentinel" };
+    state.board[8]![8] = { value: 3, owner: "B", pieceId: "right-sentinel" };
+
+    const result = resolveTerritoryTurn(state, {
+      kind: "place",
+      slot: "A",
+      source: "draft",
+      draftId: "draft-i",
+      rotation: preview!.rotation,
+      edge: "top",
+      lane: clearColumn,
+    }, 2000);
+
+    expect(result.accepted).toBe(true);
+    expect(state.lastClears.columns).toContain(clearColumn);
+    expect(state.board.some((row) => row[clearColumn]!.value !== 0)).toBe(false);
+    expect(state.board[bottomRow]![1]).toMatchObject({ value: 2, owner: "A", pieceId: "left-sentinel" });
+    expect(state.board[bottomRow]![8]).toMatchObject({ value: 3, owner: "B", pieceId: "right-sentinel" });
   });
 
   it("scores connected components quadratically", () => {
