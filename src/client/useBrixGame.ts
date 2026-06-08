@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import {
+  type AuthUser,
   type ClientToServerEvents,
+  type FriendLobbyInvite,
+  type FriendLobbySelection,
+  type FriendLobbySummary,
   type InputAction,
   type PlayerSlot,
   type PracticeBotSpeed,
@@ -35,6 +39,7 @@ export interface BrixGameState {
   oidcEnabled: boolean;
   oidcProviderName: string | null;
   displayName: string;
+  currentUser: AuthUser | null;
   snapshot: RoomSnapshot | null;
   territorySnapshot: TerritorySnapshot | null;
   localSlot: PlayerSlot | null;
@@ -43,6 +48,8 @@ export interface BrixGameState {
   isConnected: boolean;
   social: SocialSummary | null;
   socialMessage: string;
+  friendLobby: FriendLobbySummary | null;
+  friendLobbyInvite: FriendLobbyInvite | null;
 }
 
 export interface BrixGameActions {
@@ -65,7 +72,11 @@ export interface BrixGameActions {
   addFriend: (username: string) => Promise<void>;
   acceptFriendRequest: (requestId: string) => Promise<void>;
   declineFriendRequest: (requestId: string) => Promise<void>;
-  joinFriend: (friendId: string) => Promise<void>;
+  inviteFriend: (friendId: string) => Promise<void>;
+  respondFriendLobbyInvite: (lobbyId: string, response: "accept" | "decline") => void;
+  updateFriendLobbySettings: (lobbyId: string, selection: FriendLobbySelection) => void;
+  startFriendLobby: (lobbyId: string) => void;
+  leaveFriendLobby: (lobbyId: string) => void;
   reconnectStoredSession: () => Promise<void>;
   sendInput: (action: InputAction) => void;
   sendTerritoryAction: (action: TerritoryTurnAction) => void;
@@ -87,6 +98,7 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
   const [oidcEnabled, setOidcEnabled] = useState(false);
   const [oidcProviderName, setOidcProviderName] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState("Guest");
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [snapshot, setSnapshot] = useState<RoomSnapshot | null>(null);
   const [territorySnapshot, setTerritorySnapshot] = useState<TerritorySnapshot | null>(null);
   const [localSlot, setLocalSlot] = useState<PlayerSlot | null>(null);
@@ -95,6 +107,8 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
   const [isConnected, setIsConnected] = useState(false);
   const [social, setSocial] = useState<SocialSummary | null>(null);
   const [socialMessage, setSocialMessage] = useState("Sign in to add friends and chase the board.");
+  const [friendLobby, setFriendLobby] = useState<FriendLobbySummary | null>(null);
+  const [friendLobbyInvite, setFriendLobbyInvite] = useState<FriendLobbyInvite | null>(null);
 
   useEffect(() => {
     snapshotRef.current = snapshot;
@@ -114,6 +128,7 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
   const clearStoredAuth = useCallback((message?: string) => {
     localStorage.removeItem(STORAGE_KEY);
     setAuthMode(null);
+    setCurrentUser(null);
     setRoomId(null);
     setLocalSlot(null);
     if (message) {
@@ -159,6 +174,7 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
     });
 
     socket.on("authenticated", ({ user }) => {
+      setCurrentUser(user);
       setDisplayName(user.displayName);
     });
 
@@ -202,6 +218,23 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
       void refreshSocialFromStorage(setSocial, setSocialMessage);
     });
 
+    socket.on("friendLobbyInviteReceived", (invite) => {
+      setFriendLobbyInvite(invite);
+      setStatus(`${invite.from.displayName} invited you to play`);
+    });
+
+    socket.on("friendLobbyUpdated", (lobby) => {
+      setFriendLobby(lobby);
+      setFriendLobbyInvite((invite) => (invite?.lobbyId === lobby.id ? null : invite));
+      setStatus(lobby.status === "accepted" ? "Friend lobby ready" : "Friend invite sent");
+    });
+
+    socket.on("friendLobbyClosed", ({ lobbyId, reason }) => {
+      setFriendLobby((lobby) => (lobby?.id === lobbyId ? null : lobby));
+      setFriendLobbyInvite((invite) => (invite?.lobbyId === lobbyId ? null : invite));
+      setStatus(friendLobbyClosedMessage(reason));
+    });
+
     socket.on("latency", ({ latencyMs }) => {
       setLatencyMs(latencyMs);
     });
@@ -237,6 +270,7 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
     const token = await requestDemoToken(displayName || "Guest");
     saveSession({ token, authMode: "guest" });
     setAuthMode("guest");
+    setCurrentUser(null);
     setAuthMessage("Guest session ready. You can still login or register.");
     setStatus("Guest ready");
     setSocial(null);
@@ -273,7 +307,7 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
       });
       const body = (await response.json()) as {
         token?: string;
-        user?: { displayName: string };
+        user?: { userId?: string; displayName: string };
         message?: string;
         otpRequired?: boolean;
       };
@@ -288,7 +322,9 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
 
       saveSession({ token: body.token, authMode: "account" });
       setAuthMode("account");
-      setDisplayName(body.user?.displayName ?? username);
+      const nextDisplayName = body.user?.displayName ?? username;
+      setDisplayName(nextDisplayName);
+      setCurrentUser(body.user?.userId ? { userId: body.user.userId, displayName: nextDisplayName } : null);
       setAuthMessage("Signed in.");
       setStatus("Signed in");
       disconnectSocket();
@@ -390,12 +426,51 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
     }
   }, []);
 
-  const joinFriend = useCallback(async (friendId: string) => {
-    setStatus("Joining friend");
+  const inviteFriend = useCallback(async (friendId: string) => {
+    setStatus("Inviting friend");
     const token = await ensureToken();
     const socket = connectSocket(token);
-    socket.emit("joinFriend", { friendId });
+    socket.emit("createFriendLobbyInvite", { friendId });
   }, [connectSocket, ensureToken]);
+
+  const respondFriendLobbyInvite = useCallback((lobbyId: string, response: "accept" | "decline") => {
+    const socket = socketRef.current;
+    if (!socket?.connected) {
+      setStatus("Connect before responding to friend invites.");
+      return;
+    }
+    socket.emit("respondFriendLobbyInvite", { lobbyId, response });
+    if (response === "decline") {
+      setFriendLobbyInvite((invite) => (invite?.lobbyId === lobbyId ? null : invite));
+    }
+  }, []);
+
+  const updateFriendLobbySettings = useCallback((lobbyId: string, selection: FriendLobbySelection) => {
+    const socket = socketRef.current;
+    if (!socket?.connected) {
+      setStatus("Connect before changing lobby settings.");
+      return;
+    }
+    socket.emit("updateFriendLobbySettings", { lobbyId, selection });
+  }, []);
+
+  const startFriendLobby = useCallback((lobbyId: string) => {
+    const socket = socketRef.current;
+    if (!socket?.connected) {
+      setStatus("Connect before starting the lobby.");
+      return;
+    }
+    socket.emit("startFriendLobby", { lobbyId });
+  }, []);
+
+  const leaveFriendLobby = useCallback((lobbyId: string) => {
+    const socket = socketRef.current;
+    if (!socket?.connected) {
+      setFriendLobby((lobby) => (lobby?.id === lobbyId ? null : lobby));
+      return;
+    }
+    socket.emit("leaveFriendLobby", { lobbyId });
+  }, []);
 
   const reconnectStoredSession = useCallback(async () => {
     const session = loadSession();
@@ -450,6 +525,8 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
     setRoomId(null);
     setLocalSlot(null);
     setLatencyMs(null);
+    setFriendLobby(null);
+    setFriendLobbyInvite(null);
     setStatus(authMode === "account" ? "Signed in" : authMode === "guest" ? "Guest ready" : "Offline");
   }, [authMode, disconnectSocket]);
 
@@ -464,6 +541,8 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
     setLatencyMs(null);
     setSocial(null);
     setSocialMessage("Sign in to add friends and chase the board.");
+    setFriendLobby(null);
+    setFriendLobbyInvite(null);
   }, [clearStoredAuth, disconnectSocket]);
 
   useEffect(() => {
@@ -516,6 +595,7 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
           const nextAuthMode = session.authMode ?? (isGuestUserId(body.user.userId) ? "guest" : "account");
           setAuthMode(nextAuthMode);
           setDisplayName(body.user.displayName);
+          setCurrentUser(body.user.userId ? { userId: body.user.userId, displayName: body.user.displayName } : null);
           setAuthMessage(
             nextAuthMode === "guest"
               ? "Guest session restored. You can still login or register."
@@ -560,6 +640,7 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
     oidcEnabled,
     oidcProviderName,
     displayName,
+    currentUser,
     snapshot,
     territorySnapshot,
     localSlot,
@@ -568,6 +649,8 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
     isConnected,
     social,
     socialMessage,
+    friendLobby,
+    friendLobbyInvite,
     setDisplayName,
     authenticateAsGuest,
     startSingleSignOn,
@@ -581,7 +664,11 @@ export function useBrixGame(): BrixGameState & BrixGameActions {
     addFriend,
     acceptFriendRequest,
     declineFriendRequest,
-    joinFriend,
+    inviteFriend,
+    respondFriendLobbyInvite,
+    updateFriendLobbySettings,
+    startFriendLobby,
+    leaveFriendLobby,
     reconnectStoredSession,
     sendInput,
     sendTerritoryAction,
@@ -714,6 +801,23 @@ function isAuthError(message: string): boolean {
 
 function isGuestUserId(userId: string | undefined): boolean {
   return userId?.startsWith("demo-") ?? false;
+}
+
+function friendLobbyClosedMessage(reason: string): string {
+  switch (reason) {
+    case "declined":
+      return "Friend invite declined";
+    case "timeout":
+      return "Friend invite expired";
+    case "started":
+      return "Starting friend match";
+    case "disconnected":
+      return "Friend lobby closed after disconnect";
+    case "unavailable":
+      return "Friend is no longer available";
+    default:
+      return "Friend lobby closed";
+  }
 }
 
 function keyToAction(event: KeyboardEvent): InputAction | null {

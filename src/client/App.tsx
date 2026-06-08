@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState, type ReactElement } from "react";
 import {
+  type FriendLobbyInvite,
+  type FriendLobbySelection,
+  type FriendLobbySummary,
   type LineClearEffect,
   type PracticeBotSpeed,
-  type TerritoryFormat,
   type SocialSummary,
+  type TerritoryFormat,
 } from "../shared/types";
 import { playLineClearSound } from "./gameAudio";
 import { useBrixGame } from "./useBrixGame";
@@ -129,8 +132,26 @@ export function App(): ReactElement {
           onAccept={game.acceptFriendRequest}
           onClose={() => setSocialOpen(false)}
           onDecline={game.declineFriendRequest}
-          onJoinFriend={game.joinFriend}
+          onInviteFriend={game.inviteFriend}
           onRefresh={game.refreshSocial}
+        />
+      )}
+
+      {game.friendLobbyInvite && (
+        <FriendInviteToast
+          invite={game.friendLobbyInvite}
+          onAccept={() => game.respondFriendLobbyInvite(game.friendLobbyInvite!.lobbyId, "accept")}
+          onDecline={() => game.respondFriendLobbyInvite(game.friendLobbyInvite!.lobbyId, "decline")}
+        />
+      )}
+
+      {game.friendLobby && (
+        <FriendLobbyModal
+          lobby={game.friendLobby}
+          currentUserId={game.currentUser?.userId ?? null}
+          onSettingsChange={(selection) => game.updateFriendLobbySettings(game.friendLobby!.id, selection)}
+          onStart={() => game.startFriendLobby(game.friendLobby!.id)}
+          onLeave={() => game.leaveFriendLobby(game.friendLobby!.id)}
         />
       )}
 
@@ -199,7 +220,7 @@ function FriendsModal({
   onAddFriend,
   onAccept,
   onDecline,
-  onJoinFriend,
+  onInviteFriend,
   onRefresh,
   onClose,
 }: {
@@ -209,7 +230,7 @@ function FriendsModal({
   onAddFriend: (username: string) => Promise<void>;
   onAccept: (requestId: string) => Promise<void>;
   onDecline: (requestId: string) => Promise<void>;
-  onJoinFriend: (friendId: string) => Promise<void>;
+  onInviteFriend: (friendId: string) => Promise<void>;
   onRefresh: () => Promise<void>;
   onClose: () => void;
 }): ReactElement {
@@ -304,9 +325,9 @@ function FriendsModal({
                 className="mini-button"
                 type="button"
                 disabled={!friend.online || friend.inGame}
-                onClick={() => void onJoinFriend(friend.userId)}
+                onClick={() => void onInviteFriend(friend.userId)}
               >
-                Join
+                Invite
               </button>
             </div>
           ))}
@@ -324,6 +345,129 @@ function FriendsModal({
           ))}
         </div>
       </section>
+    </div>
+  );
+}
+
+function FriendInviteToast({
+  invite,
+  onAccept,
+  onDecline,
+}: {
+  invite: FriendLobbyInvite;
+  onAccept: () => void;
+  onDecline: () => void;
+}): ReactElement {
+  return (
+    <aside className="friend-invite-toast" role="status" aria-live="polite">
+      <div className="friend-invite-copy">
+        <p className="eyebrow">Match invite</p>
+        <strong>{invite.from.displayName}</strong>
+      </div>
+      <div className="friend-invite-actions">
+        <button className="mini-button" type="button" onClick={onAccept}>
+          Accept
+        </button>
+        <button className="mini-button secondary-button" type="button" onClick={onDecline}>
+          No
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+function FriendLobbyModal({
+  lobby,
+  currentUserId,
+  onSettingsChange,
+  onStart,
+  onLeave,
+}: {
+  lobby: FriendLobbySummary;
+  currentUserId: string | null;
+  onSettingsChange: (selection: FriendLobbySelection) => void;
+  onStart: () => void;
+  onLeave: () => void;
+}): ReactElement {
+  const isHost = currentUserId === lobby.host.userId;
+  const selectedMode = lobby.selection.mode;
+  const selectedFormat = lobby.selection.mode === "territory" ? lobby.selection.format : "blitz";
+
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section className="auth-modal friend-lobby-modal" role="dialog" aria-modal="true" aria-labelledby="friendLobbyTitle">
+        <button className="modal-close" type="button" aria-label="Leave friend lobby" onClick={onLeave}>
+          x
+        </button>
+        <div className="card-heading-row">
+          <div>
+            <p className="eyebrow">Friend lobby</p>
+            <h2 id="friendLobbyTitle">Play Together</h2>
+          </div>
+          <span className={`lobby-state-pill ${lobby.status === "accepted" ? "is-ready" : ""}`}>
+            {lobby.status === "accepted" ? "Ready" : "Invited"}
+          </span>
+        </div>
+
+        <div className="friend-lobby-roster">
+          <LobbyPlayer label="Host" name={lobby.host.displayName} ready />
+          <LobbyPlayer label="Friend" name={lobby.guest.displayName} ready={lobby.status === "accepted"} />
+        </div>
+
+        <div className="friend-lobby-settings">
+          <label className="practice-speed-control">
+            <span>Mode</span>
+            <select
+              value={selectedMode}
+              disabled={!isHost}
+              onChange={(event) => {
+                const mode = event.target.value;
+                onSettingsChange(mode === "territory" ? { mode, format: selectedFormat } : { mode: "classic" });
+              }}
+            >
+              <option value="classic">Classic</option>
+              <option value="territory">Territory</option>
+            </select>
+          </label>
+          {selectedMode === "territory" && (
+            <label className="practice-speed-control">
+              <span>Format</span>
+              <select
+                value={selectedFormat}
+                disabled={!isHost}
+                onChange={(event) => onSettingsChange({ mode: "territory", format: event.target.value as TerritoryFormat })}
+              >
+                <option value="bullet">Bullet</option>
+                <option value="blitz">Blitz</option>
+                <option value="rapid">Rapid</option>
+              </select>
+            </label>
+          )}
+        </div>
+
+        <div className="menu-actions">
+          {isHost && (
+            <button className="match-button" type="button" disabled={lobby.status !== "accepted"} onClick={onStart}>
+              Start
+            </button>
+          )}
+          <button className="secondary-button" type="button" onClick={onLeave}>
+            Leave
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function LobbyPlayer({ label, name, ready }: { label: string; name: string; ready: boolean }): ReactElement {
+  return (
+    <div className="lobby-player-row">
+      <div className="friend-copy">
+        <span>{label}</span>
+        <strong>{name}</strong>
+      </div>
+      <span className={`lobby-state-pill ${ready ? "is-ready" : ""}`}>{ready ? "Ready" : "Waiting"}</span>
     </div>
   );
 }

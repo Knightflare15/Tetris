@@ -8,6 +8,7 @@ import { Server } from "socket.io";
 import type { ClientToServerEvents, ServerToClientEvents } from "../shared/types";
 import { AuthService } from "./authService";
 import { loadConfig } from "./config";
+import { FriendLobbyService } from "./friendLobbyService";
 import { logger } from "./logger";
 import { MatchmakingService } from "./matchmakingService";
 import { RoomManager } from "./roomManager";
@@ -443,7 +444,8 @@ const roomManager = new RoomManager(io, config.disconnectGraceMs, (roomId, playe
 });
 socialService = new SocialService(io, roomManager);
 const matchmaking = new MatchmakingService(io, roomManager);
-registerSocketGateway(io, authService, roomManager, matchmaking, socialService);
+const friendLobbyService = new FriendLobbyService(io, roomManager, matchmaking, socialService);
+registerSocketGateway(io, authService, roomManager, matchmaking, socialService, friendLobbyService);
 
 if (config.redisUrl) {
   void warmRedis(config.redisUrl)

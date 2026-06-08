@@ -137,43 +137,9 @@ export class SocialService {
     await this.notifyUsers([request.senderId, request.receiverId]);
   }
 
-  async joinFriend(socket: GameSocket, user: AuthUser, friendId: string): Promise<void> {
-    if (!isDatabaseConfigured()) {
-      socket.emit("serverError", { message: "Friend games need account mode." });
-      return;
-    }
-    if (!(await this.areFriends(user.userId, friendId))) {
-      socket.emit("serverError", { message: "You can only join friends." });
-      return;
-    }
-    if (this.roomManager.isSocketInRoom(socket.id)) {
-      socket.emit("serverError", { message: "You are already in a room." });
-      return;
-    }
-
-    const friendSocket = this.availableSocketForUser(friendId);
-    if (!friendSocket) {
-      socket.emit("serverError", { message: "Friend is not available right now." });
-      return;
-    }
-
-    const friend = this.onlineUsers.get(friendId)?.user;
-    if (!friend) {
-      socket.emit("serverError", { message: "Friend is not available right now." });
-      return;
-    }
-
-    const state = this.roomManager.createRoom(user, socket.id, friend, friendSocket.id);
-    const playerA = state.players.A;
-    const playerB = state.players.B;
-    if (!playerA || !playerB) {
-      throw new Error("Friend room created without both players.");
-    }
-
-    socket.emit("roomJoined", { roomId: state.roomId, slot: "A", reconnectToken: playerA.reconnectToken, mode: "classic" });
-    friendSocket.emit("roomJoined", { roomId: state.roomId, slot: "B", reconnectToken: playerB.reconnectToken, mode: "classic" });
-    this.io.to(state.roomId).emit("snapshot", this.roomManager.snapshotForSocket(socket.id)!);
-    await this.notifyUsers([user.userId, friendId]);
+  async areUsersFriends(firstId: string, secondId: string): Promise<boolean> {
+    this.requireDatabase();
+    return this.areFriends(firstId, secondId);
   }
 
   async recordMatch(roomId: string, playerIds: string[], score: number, level: number, lines: number, mode: string): Promise<void> {
@@ -293,20 +259,6 @@ export class SocialService {
       select: { id: true },
     });
     return Boolean(friendship);
-  }
-
-  private availableSocketForUser(userId: string): GameSocket | null {
-    const entry = this.onlineUsers.get(userId);
-    if (!entry) {
-      return null;
-    }
-    for (const socketId of entry.sockets) {
-      const socket = this.io.sockets.sockets.get(socketId) as GameSocket | undefined;
-      if (socket && !this.roomManager.isSocketInRoom(socketId)) {
-        return socket;
-      }
-    }
-    return null;
   }
 
   private async notifyFriends(userId: string): Promise<void> {

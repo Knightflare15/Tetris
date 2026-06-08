@@ -9,6 +9,7 @@ import type {
   TerritoryTurnAction,
 } from "../shared/types";
 import { AuthService } from "./authService";
+import { FriendLobbyService } from "./friendLobbyService";
 import { logger } from "./logger";
 import { MatchmakingService } from "./matchmakingService";
 import { RoomManager } from "./roomManager";
@@ -23,6 +24,7 @@ export function registerSocketGateway(
   roomManager: RoomManager,
   matchmaking: MatchmakingService,
   socialService: SocialService,
+  friendLobbyService: FriendLobbyService,
 ): void {
   io.use((socket: GameSocket, next) => {
     try {
@@ -47,6 +49,7 @@ export function registerSocketGateway(
 
     logger.info({ socketId: socket.id, userId: user.userId }, "socket connected");
     socialService.addOnline(socket, user);
+    friendLobbyService.addOnline(socket, user);
     socket.emit("authenticated", { user });
 
     socket.on("joinMatchmaking", () => {
@@ -76,16 +79,48 @@ export function registerSocketGateway(
       }
     });
 
-    socket.on("joinFriend", ({ friendId }) => {
+    socket.on("createFriendLobbyInvite", ({ friendId }) => {
       if (typeof friendId !== "string" || !friendId) {
-        socket.emit("serverError", { message: "Choose a friend to join." });
+        socket.emit("serverError", { message: "Choose a friend to invite." });
         return;
       }
       matchmaking.remove(socket.id);
-      void socialService.joinFriend(socket, user, friendId).catch((error) => {
-        logger.error({ error, userId: user.userId, friendId }, "friend join failed");
-        socket.emit("serverError", { message: "Could not start a friend game." });
+      void friendLobbyService.createInvite(socket, user, friendId).catch((error) => {
+        logger.error({ error, userId: user.userId, friendId }, "friend lobby invite failed");
+        socket.emit("serverError", { message: "Could not invite friend." });
       });
+    });
+
+    socket.on("respondFriendLobbyInvite", ({ lobbyId, response }) => {
+      if (typeof lobbyId !== "string" || !lobbyId || (response !== "accept" && response !== "decline")) {
+        socket.emit("serverError", { message: "Choose a valid friend invite response." });
+        return;
+      }
+      friendLobbyService.respond(socket, user, lobbyId, response);
+    });
+
+    socket.on("updateFriendLobbySettings", ({ lobbyId, selection }) => {
+      if (typeof lobbyId !== "string" || !lobbyId || !isValidLobbySelection(selection)) {
+        socket.emit("serverError", { message: "Choose a valid lobby mode." });
+        return;
+      }
+      friendLobbyService.updateSettings(socket, user, lobbyId, selection);
+    });
+
+    socket.on("startFriendLobby", ({ lobbyId }) => {
+      if (typeof lobbyId !== "string" || !lobbyId) {
+        socket.emit("serverError", { message: "Choose a friend lobby to start." });
+        return;
+      }
+      friendLobbyService.start(socket, user, lobbyId);
+    });
+
+    socket.on("leaveFriendLobby", ({ lobbyId }) => {
+      if (typeof lobbyId !== "string" || !lobbyId) {
+        socket.emit("serverError", { message: "Choose a friend lobby to leave." });
+        return;
+      }
+      friendLobbyService.leave(socket, user, lobbyId);
     });
 
     socket.on("joinTerritory", ({ format }) => {
@@ -155,6 +190,7 @@ export function registerSocketGateway(
     socket.on("disconnect", (reason) => {
       matchmaking.remove(socket.id);
       roomManager.markDisconnected(socket.id);
+      friendLobbyService.removeOnline(socket.id, user.userId);
       socialService.removeOnline(socket.id, user.userId);
       logger.info({ socketId: socket.id, userId: user.userId, reason }, "socket disconnected");
     });
@@ -184,6 +220,14 @@ function isPracticeBotSpeed(value: unknown): value is "slow" | "balanced" | "qui
 
 function isTerritoryFormat(value: unknown): value is TerritoryFormat {
   return value === "bullet" || value === "blitz" || value === "rapid";
+}
+
+function isValidLobbySelection(value: unknown): boolean {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const selection = value as { mode?: unknown; format?: unknown };
+  return selection.mode === "classic" || (selection.mode === "territory" && isTerritoryFormat(selection.format));
 }
 
 function isValidTerritoryAction(action: TerritoryTurnAction): boolean {

@@ -353,6 +353,42 @@ export interface SocialSummary {
   leaderboard: LeaderboardEntry[];
 }
 
+export type FriendLobbySelection =
+  | {
+      mode: "classic";
+    }
+  | {
+      mode: "territory";
+      format: TerritoryFormat;
+    };
+
+export type FriendLobbyStatus = "pending" | "accepted";
+
+export type FriendLobbyClosedReason = "declined" | "timeout" | "left" | "disconnected" | "started" | "unavailable";
+
+export interface FriendLobbyPlayer {
+  userId: string;
+  displayName: string;
+}
+
+export interface FriendLobbySummary {
+  id: string;
+  host: FriendLobbyPlayer;
+  guest: FriendLobbyPlayer;
+  status: FriendLobbyStatus;
+  selection: FriendLobbySelection;
+  createdAt: number;
+  expiresAt: number;
+}
+
+export interface FriendLobbyInvite {
+  lobbyId: string;
+  from: FriendLobbyPlayer;
+  selection: FriendLobbySelection;
+  createdAt: number;
+  expiresAt: number;
+}
+
 export interface ServerToClientEvents {
   authenticated: (payload: { user: AuthUser }) => void;
   matchmakingQueued: (payload: { queueSize: number; mode?: GameMode; format?: TerritoryFormat }) => void;
@@ -366,6 +402,9 @@ export interface ServerToClientEvents {
   snapshot: (snapshot: RoomSnapshot) => void;
   territorySnapshot: (snapshot: TerritorySnapshot) => void;
   socialUpdated: () => void;
+  friendLobbyInviteReceived: (invite: FriendLobbyInvite) => void;
+  friendLobbyUpdated: (lobby: FriendLobbySummary) => void;
+  friendLobbyClosed: (payload: { lobbyId: string; reason: FriendLobbyClosedReason }) => void;
   latency: (payload: { latencyMs: number; serverTime: number }) => void;
   serverError: (payload: { message: string }) => void;
 }
@@ -374,7 +413,11 @@ export interface ClientToServerEvents {
   authenticate: (payload: { token?: string; displayName?: string }) => void;
   joinMatchmaking: () => void;
   joinPractice: (payload: { botSpeed: PracticeBotSpeed }) => void;
-  joinFriend: (payload: { friendId: string }) => void;
+  createFriendLobbyInvite: (payload: { friendId: string }) => void;
+  respondFriendLobbyInvite: (payload: { lobbyId: string; response: "accept" | "decline" }) => void;
+  updateFriendLobbySettings: (payload: { lobbyId: string; selection: FriendLobbySelection }) => void;
+  startFriendLobby: (payload: { lobbyId: string }) => void;
+  leaveFriendLobby: (payload: { lobbyId: string }) => void;
   joinTerritory: (payload: { format: TerritoryFormat }) => void;
   reconnectRoom: (payload: { roomId: string; reconnectToken: string }) => void;
   input: (input: ClientInput) => void;
