@@ -713,18 +713,3 @@ function StatusPill({ status, connected }: { status: string; connected: boolean 
     </div>
   );
 }
-
-function StatRow({ label, value, flashKey }: { label: string; value: string; flashKey?: number }): ReactElement {
-  return (
-    <p className="stat-row">
-      <span>{label}</span>
-      <strong className={flashKey ? "score-stat-flash" : undefined} key={flashKey ?? value}>
-        {value}
-      </strong>
-    </p>
-  );
-}
-
-function short(value: string): string {
-  return value.slice(0, 8);
-}

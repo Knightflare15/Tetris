@@ -67,3 +67,12 @@ export async function checkRedisHealth(redisUrl: string | undefined): Promise<{
     };
   }
 }
+
+export async function closeRedis(): Promise<void> {
+  const client = redisClient ?? await redisConnection?.catch(() => null);
+  if (client?.isOpen) {
+    await client.quit();
+  }
+  redisClient = null;
+  redisConnection = null;
+}

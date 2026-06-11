@@ -92,6 +92,37 @@ describe("territory engine", () => {
     expect(placements.some((placement) => placement.lane === 2)).toBe(true);
   });
 
+  it("places a piece beneath an overhang after descending through an open lane", () => {
+    const state = room();
+    state.draft.pieces = [{ id: "draft-o", type: "O" }];
+    state.board[2]![7] = { value: 2, owner: "B" };
+    state.board[2]![8] = { value: 2, owner: "B" };
+
+    updateTerritoryPreview(state, { kind: "select", slot: "A", source: "draft", draftId: "draft-o" });
+    for (let step = 0; step < 5; step++) {
+      updateTerritoryPreview(state, { kind: "input", slot: "A", action: "softDrop" });
+    }
+    updateTerritoryPreview(state, { kind: "input", slot: "A", action: "moveRight" });
+    updateTerritoryPreview(state, { kind: "input", slot: "A", action: "moveRight" });
+
+    const preview = state.currentPreview;
+    expect(preview).toMatchObject({ type: "O", x: 7, y: 3 });
+
+    const result = resolveTerritoryTurn(state, {
+      kind: "place",
+      slot: "A",
+      source: "draft",
+      draftId: "draft-o",
+      rotation: preview!.rotation,
+      edge: "top",
+      lane: preview!.x,
+    }, 2000);
+
+    expect(result.accepted).toBe(true);
+    expect(result.placement).toMatchObject({ x: 7, y: state.board.length - 2 });
+    expect(result.placement?.cells.every((cell) => cell.x >= 7 && cell.x <= 8 && cell.y >= 3)).toBe(true);
+  });
+
   it("rejects stale blocked previews without writing off the board", () => {
     const state = room();
     state.draft.pieces = [{ id: "draft-o", type: "O" }];

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, type ReactElement } from "react";
 import {
   type InputAction,
-  type LineClearEffect,
   type PracticeBotSpeed,
   type RoomSnapshot,
   type TerritoryFormat,

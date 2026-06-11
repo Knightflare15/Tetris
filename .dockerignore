@@ -3,3 +3,10 @@ dist
 .git
 .env
 npm-debug.log
+.claude
+.github
+docs
+test
+*.md
+*.log
+quattro-mockup.html

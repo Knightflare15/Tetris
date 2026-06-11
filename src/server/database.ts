@@ -22,3 +22,32 @@ export function getPrisma(): PrismaClient {
 export function isDatabaseConfigured(): boolean {
   return Boolean(getDatabaseUrl());
 }
+
+export async function checkDatabaseHealth(): Promise<{
+  configured: boolean;
+  healthy: boolean;
+  error?: string;
+}> {
+  if (!isDatabaseConfigured()) {
+    return { configured: false, healthy: false };
+  }
+
+  try {
+    await getPrisma().$queryRaw`SELECT 1`;
+    return { configured: true, healthy: true };
+  } catch (error) {
+    return {
+      configured: true,
+      healthy: false,
+      error: error instanceof Error ? error.message : "Database health check failed.",
+    };
+  }
+}
+
+export async function closeDatabase(): Promise<void> {
+  if (!prisma) {
+    return;
+  }
+  await prisma.$disconnect();
+  prisma = null;
+}

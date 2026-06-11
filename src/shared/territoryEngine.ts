@@ -1,7 +1,6 @@
 import { SeededRng } from "./rng";
 import { matrixFor, TETROMINO_TYPES, TETROMINO_VALUE } from "./tetrominoes";
 import type {
-  CellValue,
   Matrix,
   PlayerSlot,
   TerritoryBoard,
@@ -68,16 +67,6 @@ function cloneActivePiece(piece: TerritoryActivePiece | null): TerritoryActivePi
   return {
     ...piece,
     cells: piece.cells.map((cell) => ({ ...cell })),
-  };
-}
-
-function clonePlacement(placement: TerritoryLegalPlacement | null): TerritoryLegalPlacement | null {
-  if (!placement) {
-    return null;
-  }
-  return {
-    ...placement,
-    cells: placement.cells.map((cell) => ({ ...cell })),
   };
 }
 
@@ -214,25 +203,6 @@ function createSpawnPreview(
   return activePieceFromPosition(source, type, rotation, x, y, draftId);
 }
 
-function projectActivePiece(board: TerritoryBoard, piece: TerritoryActivePiece): TerritoryLegalPlacement {
-  const pieceCells = normalizedCellsFor(piece.type, piece.rotation);
-  let y = piece.y;
-  while (!collidesAt(board, pieceCells, piece.x, y + 1)) {
-    y += 1;
-  }
-  return {
-    source: piece.source,
-    draftId: piece.draftId,
-    type: piece.type,
-    rotation: piece.rotation,
-    edge: "top",
-    lane: piece.x,
-    x: piece.x,
-    y,
-    cells: cellsAt(pieceCells, piece.x, y),
-  };
-}
-
 function tryMovePreview(board: TerritoryBoard, piece: TerritoryActivePiece, dx: number, dy: number): TerritoryActivePiece | null {
   const pieceCells = normalizedCellsFor(piece.type, piece.rotation);
   const nextX = piece.x + dx;
@@ -253,6 +223,30 @@ function tryRotatePreview(board: TerritoryBoard, piece: TerritoryActivePiece, di
     }
   }
   return null;
+}
+
+function projectActivePiece(board: TerritoryBoard, piece: TerritoryActivePiece): TerritoryLegalPlacement | null {
+  const pieceCells = normalizedCellsFor(piece.type, piece.rotation);
+  if (collidesAt(board, pieceCells, piece.x, piece.y)) {
+    return null;
+  }
+
+  let y = piece.y;
+  while (!collidesAt(board, pieceCells, piece.x, y + 1)) {
+    y += 1;
+  }
+
+  return {
+    source: piece.source,
+    draftId: piece.draftId,
+    type: piece.type,
+    rotation: piece.rotation,
+    edge: "top",
+    lane: piece.x,
+    x: piece.x,
+    y,
+    cells: cellsAt(pieceCells, piece.x, y),
+  };
 }
 
 function isFullyInside(board: TerritoryBoard, cells: PieceCell[], x: number, y: number): boolean {
@@ -943,15 +937,7 @@ export function resolveTerritoryTurn(
     return { accepted: false, message: "Draft selection is out of sync.", snapshot: snapshotTerritoryRoom(state, now) };
   }
 
-  const placement = findDropPlacement(
-    state.board,
-    action.source,
-    preview.type,
-    action.rotation,
-    action.edge,
-    action.lane,
-    action.source === "draft" ? action.draftId : undefined,
-  );
+  const placement = projectActivePiece(state.board, preview);
   if (!placement || !isPlacementInsideBoard(state.board, placement)) {
     return { accepted: false, message: "Placement is not legal.", snapshot: snapshotTerritoryRoom(state, now) };
   }

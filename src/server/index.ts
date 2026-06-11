@@ -13,13 +13,13 @@ import { logger } from "./logger";
 import { MatchmakingService } from "./matchmakingService";
 import { RoomManager } from "./roomManager";
 import { registerSocketGateway } from "./socketGateway";
-import { getPrisma, isDatabaseConfigured } from "./database";
+import { checkDatabaseHealth, closeDatabase, getPrisma, isDatabaseConfigured } from "./database";
 import { hashPassword, verifyPassword } from "./passwordService";
 import { SocialError, SocialService } from "./socialService";
 import { EmailService } from "./emailService";
 import { OidcService, type OidcUserProfile } from "./oidcService";
 import { createRateLimiter, enforceRateLimit } from "./rateLimiter";
-import { checkRedisHealth, warmRedis } from "./redis";
+import { checkRedisHealth, closeRedis, warmRedis } from "./redis";
 import { createTransientStore } from "./transientStore";
 
 const config = loadConfig();
@@ -67,15 +67,18 @@ app.get("/health", (_req, res) => {
 });
 
 app.get("/health/ready", async (_req, res) => {
-  const redis = await checkRedisHealth(config.redisUrl);
+  const [database, redis] = await Promise.all([
+    checkDatabaseHealth(),
+    checkRedisHealth(config.redisUrl),
+  ]);
   const dependencies = {
-    database: {
-      configured: isDatabaseConfigured(),
-    },
+    database,
     redis,
   };
 
-  const ready = !redis.configured || redis.healthy;
+  const ready =
+    (!database.configured || database.healthy) &&
+    (!redis.configured || redis.healthy);
   res.status(ready ? 200 : 503).json({
     ok: ready,
     service: "coop-tetris",
@@ -436,8 +439,6 @@ app.post("/friends/requests/:id/decline", async (req, res) => {
 });
 
 const publicDir = path.resolve(process.cwd(), "dist/public");
-app.use("/sounds", express.static(path.resolve(process.cwd(), "sounds")));
-app.use("/assets", express.static(path.resolve(process.cwd(), "src/assets")));
 app.use(express.static(publicDir));
 app.get("*", (_req, res) => {
   res.sendFile(path.join(publicDir, "index.html"));
@@ -476,6 +477,40 @@ server.listen(config.port, config.host, () => {
     "coop tetris server listening",
   );
 });
+
+let shuttingDown = false;
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.once(signal, () => {
+    void shutdown(signal);
+  });
+}
+
+async function shutdown(signal: "SIGINT" | "SIGTERM"): Promise<void> {
+  if (shuttingDown) {
+    return;
+  }
+  shuttingDown = true;
+  logger.info({ signal }, "server shutdown started");
+
+  const forceExit = setTimeout(() => {
+    logger.error({ signal }, "server shutdown timed out");
+    process.exit(1);
+  }, 10000);
+  forceExit.unref();
+
+  try {
+    await new Promise<void>((resolve) => {
+      io.close(() => resolve());
+    });
+    await Promise.all([closeDatabase(), closeRedis()]);
+    logger.info({ signal }, "server shutdown completed");
+  } catch (error) {
+    logger.error({ error, signal }, "server shutdown failed");
+    process.exitCode = 1;
+  } finally {
+    clearTimeout(forceExit);
+  }
+}
 
 type ParsedCredentials =
   | { ok: true; username: string; email: string; displayName: string; password: string }
