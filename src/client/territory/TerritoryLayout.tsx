@@ -207,7 +207,24 @@ export function TerritoryLayout({
       </aside>
 
       <section className="board-column territory-board-column">
-        <TerritoryBoardCanvas snapshot={snapshot} localSlot={localSlot} preview={snapshot.currentPreview} colorPreferences={colorPreferences} />
+        <TerritoryBoardCanvas
+          snapshot={snapshot}
+          localSlot={localSlot}
+          preview={snapshot.currentPreview}
+          colorPreferences={colorPreferences}
+          isActive={isActive}
+          onInput={(action) => {
+            if (localSlot) {
+              onPreview({ kind: "input", slot: localSlot, action });
+            }
+          }}
+          onConfirm={submitPlacement}
+          onHold={() => {
+            if (localSlot && snapshot.canHold && selectedSource === "draft" && selectedDraftId) {
+              onAction({ kind: "hold", slot: localSlot, draftId: selectedDraftId });
+            }
+          }}
+        />
       </section>
 
       <aside className="side-rail right-rail territory-right-rail">
@@ -269,11 +286,19 @@ function TerritoryBoardCanvas({
   localSlot,
   preview,
   colorPreferences,
+  isActive,
+  onInput,
+  onConfirm,
+  onHold,
 }: {
   snapshot: TerritorySnapshot;
   localSlot: "A" | "B" | null;
   preview: TerritoryActivePiece | null;
   colorPreferences: TerritoryColorPreferences;
+  isActive: boolean;
+  onInput: (action: Extract<TerritoryPreviewAction, { kind: "input" }>["action"]) => void;
+  onConfirm: () => void;
+  onHold: () => void;
 }): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const playfieldRef = useRef<HTMLDivElement | null>(null);
@@ -281,6 +306,23 @@ function TerritoryBoardCanvas({
   const lastClearSignatureRef = useRef(clearSignature(snapshot));
   const clearEffectStartRef = useRef<number | null>(null);
   const [clearEffectProgress, setClearEffectProgress] = useState(1);
+  const touchRef = useRef<{
+    startX: number;
+    startY: number;
+    startedAt: number;
+    lastStep: number;
+    lastSoftDropStep: number;
+    moved: boolean;
+    handled: boolean;
+  } | null>(null);
+
+  const STEP_SIZE = 18;
+  const TAP_DISTANCE = 12;
+  const SOFT_DROP_STEP = 24;
+  const CONFIRM_SWIPE_DISTANCE = 82;
+  const HOLD_SWIPE_DISTANCE = 52;
+  const QUICK_SWIPE_MS = 300;
+  const VERTICAL_TOLERANCE = 34;
 
   redrawRef.current = () => {
     if (canvasRef.current) {
@@ -397,10 +439,101 @@ function TerritoryBoardCanvas({
     redrawRef.current();
   }, [snapshot, localSlot, preview, colorPreferences, clearEffectProgress]);
 
+  function handleTouchStart(event: React.TouchEvent<HTMLCanvasElement>): void {
+    if (!isActive) {
+      return;
+    }
+    event.preventDefault();
+    const touch = event.touches[0];
+    touchRef.current = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      startedAt: performance.now(),
+      lastStep: 0,
+      lastSoftDropStep: 0,
+      moved: false,
+      handled: false,
+    };
+  }
+
+  function handleTouchMove(event: React.TouchEvent<HTMLCanvasElement>): void {
+    const gesture = touchRef.current;
+    if (!gesture || gesture.handled) {
+      return;
+    }
+    event.preventDefault();
+    const touch = event.touches[0];
+    const deltaX = touch.clientX - gesture.startX;
+    const deltaY = touch.clientY - gesture.startY;
+    const elapsedMs = performance.now() - gesture.startedAt;
+
+    if (deltaY <= -HOLD_SWIPE_DISTANCE && Math.abs(deltaX) <= VERTICAL_TOLERANCE) {
+      gesture.handled = true;
+      gesture.moved = true;
+      onHold();
+      return;
+    }
+
+    if (
+      deltaY >= CONFIRM_SWIPE_DISTANCE &&
+      Math.abs(deltaX) <= VERTICAL_TOLERANCE &&
+      elapsedMs <= QUICK_SWIPE_MS
+    ) {
+      gesture.handled = true;
+      gesture.moved = true;
+      onConfirm();
+      return;
+    }
+
+    const horizontalStep = Math.trunc(deltaX / STEP_SIZE);
+    const horizontalDifference = horizontalStep - gesture.lastStep;
+    for (let index = 0; index < Math.abs(horizontalDifference); index++) {
+      onInput(horizontalDifference > 0 ? "moveRight" : "moveLeft");
+    }
+    if (horizontalDifference !== 0) {
+      gesture.lastStep = horizontalStep;
+      gesture.moved = true;
+    }
+
+    const softDropSteps = Math.trunc(deltaY / SOFT_DROP_STEP);
+    const softDropDifference = softDropSteps - gesture.lastSoftDropStep;
+    for (let index = 0; index < softDropDifference; index++) {
+      onInput("softDrop");
+    }
+    if (softDropDifference > 0) {
+      gesture.lastSoftDropStep = softDropSteps;
+      gesture.moved = true;
+    }
+  }
+
+  function handleTouchEnd(event: React.TouchEvent<HTMLCanvasElement>): void {
+    const gesture = touchRef.current;
+    if (!gesture) {
+      return;
+    }
+    event.preventDefault();
+    const touch = event.changedTouches[0];
+    const distance = Math.hypot(touch.clientX - gesture.startX, touch.clientY - gesture.startY);
+    if (distance < TAP_DISTANCE && !gesture.moved && !gesture.handled) {
+      onInput("rotateCW");
+    }
+    touchRef.current = null;
+  }
+
   return (
     <section className="board-frame territory-board-frame" aria-label="Territory board">
       <div className="board-playfield territory-playfield" ref={playfieldRef}>
-        <canvas ref={canvasRef} width={BOARD_CANVAS_WIDTH} height={BOARD_CANVAS_HEIGHT} />
+        <canvas
+          ref={canvasRef}
+          width={BOARD_CANVAS_WIDTH}
+          height={BOARD_CANVAS_HEIGHT}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={() => {
+            touchRef.current = null;
+          }}
+        />
       </div>
     </section>
   );

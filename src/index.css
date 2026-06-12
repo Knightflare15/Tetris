@@ -3583,3 +3583,247 @@ canvas {
     max-width: min(100%, 46px) !important;
   }
 }
+
+/*
+ * Territory mobile geometry.
+ * The generic mobile queries above stack both rails beside the board. Territory
+ * instead exposes the rail cards to one grid: board across two columns/two rows,
+ * two utility cards beside it, then three cards across the bottom.
+ */
+@media (max-width: 750px) {
+  .brix-layout.territory-layout {
+    grid-template-columns: minmax(0, 30.5vw) minmax(0, 30.5vw) minmax(0, 29vw) !important;
+    grid-template-areas: none !important;
+    grid-template-rows: auto auto !important;
+    column-gap: clamp(3px, 1.2vw, 7px) !important;
+    row-gap: clamp(5px, 1.5vw, 9px) !important;
+    align-items: start !important;
+    width: min(100%, 750px) !important;
+  }
+
+  .territory-layout .territory-left-rail {
+    display: contents !important;
+  }
+
+  .territory-layout .territory-board-column {
+    grid-column: 1 / span 2 !important;
+    grid-row: 1 !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .territory-layout .territory-board-frame {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .territory-layout .territory-right-rail {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: clamp(8px, 2vw, 14px) !important;
+    width: 100% !important;
+    padding-top: 0 !important;
+    align-self: start !important;
+  }
+
+  .territory-layout .territory-draft-card,
+  .territory-layout .territory-hold-card {
+    width: 100% !important;
+  }
+
+  .territory-layout .territory-left-rail > .territory-score-card:nth-of-type(1) {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+  }
+
+  .territory-layout .territory-left-rail > .territory-score-card:nth-of-type(2) {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+  }
+
+  .territory-layout .territory-color-card {
+    grid-column: 3 !important;
+    grid-row: 2 !important;
+  }
+
+  .territory-layout .territory-score-card,
+  .territory-layout .territory-color-card {
+    --panel-frame-pad-y: clamp(10px, 2.2vw, 16px);
+    --panel-frame-pad-x: clamp(10px, 2.2vw, 16px);
+    --panel-frame-inset: clamp(7px, 1.5vw, 11px);
+    min-height: clamp(160px, 30vw, 220px);
+  }
+
+  .territory-layout .cellar-card {
+    --panel-frame-pad-y: clamp(7px, 1.6vw, 12px);
+    --panel-frame-pad-x: clamp(7px, 1.6vw, 12px);
+    --panel-frame-inset: clamp(5px, 1.15vw, 9px);
+    min-width: 0 !important;
+    padding: var(--panel-frame-pad-y) var(--panel-frame-pad-x) !important;
+    overflow: visible !important;
+    isolation: isolate !important;
+  }
+
+  .territory-layout .cellar-card::after {
+    display: block !important;
+    inset: -7% -7% -7% !important;
+    background: url("./assets/vineyard/border.png") center / 136% 144% no-repeat !important;
+  }
+
+  .territory-layout .eyebrow {
+    margin-bottom: 2px !important;
+    font-size: clamp(0.4rem, 1.35vw, 0.58rem) !important;
+    line-height: 1.05 !important;
+  }
+
+  .territory-layout .stat-row,
+  .territory-layout .stat-row strong,
+  .territory-layout .territory-help,
+  .territory-layout .territory-hold-row,
+  .territory-layout .territory-color-select,
+  .territory-layout button,
+  .territory-layout select {
+    font-size: clamp(0.38rem, 1.2vw, 0.54rem) !important;
+    line-height: 1.08 !important;
+  }
+
+  .territory-layout .stat-row {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0 !important;
+  }
+
+  .territory-layout .stat-row strong {
+    text-align: left !important;
+  }
+
+  .territory-layout .territory-draft-grid {
+    gap: 3px !important;
+  }
+
+  .territory-layout .territory-piece-card {
+    gap: 1px !important;
+    padding: 3px !important;
+  }
+
+  .territory-layout .territory-piece-card canvas,
+  .territory-layout .territory-hold-row canvas {
+    max-width: clamp(36px, 8.8vw, 62px) !important;
+  }
+
+  .territory-layout .territory-hold-row {
+    grid-template-columns: minmax(36px, 52px) minmax(0, 1fr) !important;
+    gap: 4px !important;
+  }
+
+  .territory-layout .territory-hold-row strong {
+    display: none;
+  }
+
+  .territory-layout .territory-help {
+    margin-top: 2px !important;
+  }
+
+  .territory-layout .territory-color-select {
+    grid-template-columns: minmax(0, 1fr) 12px !important;
+    gap: 2px !important;
+  }
+
+  .territory-layout .territory-color-select select {
+    grid-column: 1 / -1;
+    width: 100%;
+    padding: 3px 12px 3px 3px !important;
+  }
+
+  .territory-layout .territory-color-swatch {
+    width: 12px;
+    height: 12px;
+  }
+
+  .territory-layout .territory-score-card .eyebrow,
+  .territory-layout .territory-color-card .eyebrow {
+    margin-bottom: 5px !important;
+    font-size: clamp(0.5rem, 1.65vw, 0.68rem) !important;
+  }
+
+  .territory-layout .territory-score-card,
+  .territory-layout .territory-color-card {
+    --panel-frame-pad-y: clamp(10px, 2.2vw, 16px);
+    --panel-frame-pad-x: clamp(10px, 2.2vw, 16px);
+    --panel-frame-inset: clamp(7px, 1.5vw, 11px);
+  }
+
+  .territory-layout .territory-score-card .stat-row,
+  .territory-layout .territory-score-card .stat-row strong,
+  .territory-layout .territory-color-card .territory-color-select,
+  .territory-layout .territory-color-card select {
+    font-size: clamp(0.48rem, 1.5vw, 0.64rem) !important;
+    line-height: 1.18 !important;
+  }
+
+  .territory-layout .territory-score-card {
+    gap: clamp(5px, 1.25vw, 9px) !important;
+  }
+
+  .territory-layout .territory-color-card {
+    gap: clamp(7px, 1.5vw, 11px) !important;
+  }
+
+  .territory-layout .territory-color-card .territory-color-swatch {
+    width: 16px;
+    height: 16px;
+  }
+
+  .territory-layout .territory-color-card select {
+    padding: 5px 16px 5px 6px !important;
+  }
+
+  .territory-layout .card-heading-row {
+    gap: 2px !important;
+  }
+
+  .territory-layout .inline-panel-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2px;
+  }
+
+  .territory-layout .mini-button {
+    padding: 2px 1px !important;
+  }
+}
+
+@media (max-width: 425px) {
+  .brix-app:has(.territory-layout) {
+    height: auto !important;
+    min-height: 100dvh !important;
+    overflow: visible !important;
+  }
+
+  .brix-layout.territory-layout {
+    grid-template-columns: minmax(0, 30.5vw) minmax(0, 30.5vw) minmax(0, 29vw) !important;
+  }
+
+  .territory-layout .territory-score-card,
+  .territory-layout .territory-color-card {
+    min-height: 172px;
+  }
+
+  .territory-layout .eyebrow {
+    font-size: 0.5rem !important;
+  }
+
+  .territory-layout .stat-row,
+  .territory-layout .stat-row strong,
+  .territory-layout .territory-hold-row,
+  .territory-layout .territory-color-select,
+  .territory-layout button,
+  .territory-layout select {
+    font-size: 0.46rem !important;
+  }
+
+  .territory-layout .territory-help {
+    display: none;
+  }
+}
